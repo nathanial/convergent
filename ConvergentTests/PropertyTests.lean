@@ -589,6 +589,79 @@ instance : Arbitrary (RGAOp Nat) where
   let rga' := RGA.apply rga (RGA.delete id)
   rga'.containsId id && rga'.length == 0
 
+-- LWWRegister: later timestamp wins
+#test ∀ (v1 v2 : Nat) (r1 r2 : ReplicaId),
+  let ts1 : LamportTs := { time := 1, replica := r1 }
+  let ts2 : LamportTs := { time := 2, replica := r2 }
+  let reg := LWWRegister.apply LWWRegister.empty (LWWRegister.set v1 ts1)
+  let reg' := LWWRegister.apply reg (LWWRegister.set v2 ts2)
+  reg'.get == some v2
+
+-- LWWMap: later timestamp wins for same key
+#test ∀ (k v1 v2 : Nat) (r1 r2 : ReplicaId),
+  let ts1 : LamportTs := { time := 1, replica := r1 }
+  let ts2 : LamportTs := { time := 2, replica := r2 }
+  let m := LWWMap.apply LWWMap.empty (LWWMap.put k v1 ts1)
+  let m' := LWWMap.apply m (LWWMap.put k v2 ts2)
+  m'.get k == some v2
+
+-- MVRegister: dominated value is removed (later clock dominates earlier)
+#test ∀ (v1 v2 : Nat) (r : ReplicaId),
+  let vc1 := VectorClock.inc VectorClock.empty r
+  let vc2 := VectorClock.inc vc1 r  -- vc2 dominates vc1
+  let reg := MVRegister.apply MVRegister.empty (MVRegister.set v1 vc1)
+  let reg' := MVRegister.apply reg (MVRegister.set v2 vc2)
+  reg'.get == [v2]
+
+-- MVRegister: concurrent values are preserved (neither clock dominates)
+#test ∀ (v1 v2 : Nat),
+  let r1 : ReplicaId := { id := 1 }
+  let r2 : ReplicaId := { id := 2 }
+  let vc1 := VectorClock.inc VectorClock.empty r1
+  let vc2 := VectorClock.inc VectorClock.empty r2
+  let reg := MVRegister.apply MVRegister.empty (MVRegister.set v1 vc1)
+  let reg' := MVRegister.apply reg (MVRegister.set v2 vc2)
+  -- Both values should be present (order may vary)
+  reg'.get.length == 2 && reg'.get.any (· == v1) && reg'.get.any (· == v2)
+
+-- ORSet: can re-add after remove (with new tag)
+#test ∀ (v : Nat),
+  let r : ReplicaId := { id := 1 }
+  let tag1 := UniqueId.new r 1
+  let tag2 := UniqueId.new r 2
+  let os := ORSet.apply ORSet.empty (ORSet.add v tag1)
+  let removeOp := ORSet.remove os v
+  let os' := ORSet.apply os removeOp
+  let os'' := ORSet.apply os' (ORSet.add v tag2)
+  os''.contains v
+
+-- ORSet: remove then add results in element present (add-wins semantics)
+#test ∀ (v : Nat),
+  let r : ReplicaId := { id := 1 }
+  let tag := UniqueId.new r 1
+  -- Remove on empty set (no observed tags), then add
+  let removeOp : ORSetOp Nat := .remove v []
+  let os := ORSet.apply ORSet.empty removeOp
+  let os' := ORSet.apply os (ORSet.add v tag)
+  os'.contains v
+
+-- GCounter: increment adds exactly 1
+#test ∀ (gc : GCounter) (r : ReplicaId),
+  let gc' := GCounter.apply gc (GCounter.increment r)
+  gc'.value == gc.value + 1
+
+-- RGA: concurrent inserts at same position are ordered by ID
+#test ∀ (v1 v2 : Nat),
+  let r1 : ReplicaId := { id := 1 }
+  let r2 : ReplicaId := { id := 2 }
+  let id1 := UniqueId.new r1 1
+  let id2 := UniqueId.new r2 1
+  -- Both insert at start, ID ordering determines position
+  let rga := RGA.apply RGA.empty (RGA.insert none v1 id1)
+  let rga' := RGA.apply rga (RGA.insert none v2 id2)
+  -- Lower ID (r1) comes first due to ID-based ordering
+  rga'.toList == [v1, v2]
+
 /-! ## Property Tests: Monotonicity -/
 
 -- GSet elements are never removed (add element, apply another op, element still there)

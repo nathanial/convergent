@@ -42,16 +42,16 @@ Behavioral properties unique to each CRDT type.
 
 | Property | Applicable CRDTs | Status |
 |----------|------------------|:------:|
-| Later timestamp wins | LWWReg, LWWMap | ✗ |
-| Dominated values removed | MVReg | ✗ |
-| Concurrent values preserved | MVReg | ✗ |
-| Re-add after remove works | ORSet | ✗ |
-| Remove-then-add is add | ORSet | ✗ |
-| Removed cannot re-add | TwoPSet | ✗ |
-| Insert ordering preserved | RGA | ✗ |
-| Delete creates tombstone | RGA | ✗ |
-| Increment adds exactly 1 | GCounter | ✗ |
-| Inc/dec are inverses | PNCounter | ✗ |
+| Later timestamp wins | LWWReg, LWWMap | ✓ |
+| Dominated values removed | MVReg | ✓ |
+| Concurrent values preserved | MVReg | ✓ |
+| Re-add after remove works | ORSet | ✓ |
+| Remove-then-add is add | ORSet | ✓ |
+| Removed cannot re-add | TwoPSet | ✓ |
+| Insert ordering preserved | RGA | ✓ |
+| Delete creates tombstone | RGA | ✓ |
+| Increment adds exactly 1 | GCounter | ✓ |
+| Inc/dec work correctly | PNCounter | ✓ |
 
 ## Test Files
 
