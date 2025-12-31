@@ -26,6 +26,8 @@ class CmRDT (S : Type u) (Op : Type v) where
   empty : S
   /-- Apply an operation to state, producing new state -/
   apply : S → Op → S
+  /-- Merge two states (for state-based synchronization and nested CRDTs) -/
+  merge : S → S → S
 
 namespace CmRDT
 
@@ -43,5 +45,31 @@ end CmRDT
 class CmRDTQuery (S : Type u) (Op : Type v) (Q : Type w) extends CmRDT S Op where
   /-- Query the current value from state -/
   query : S → Q
+
+/-! ## Trivial CmRDT instances for simple immutable types
+
+These allow using simple types as values in nested CRDT structures like ORMap.
+Operations are no-ops, merge keeps the first value (since values are immutable).
+-/
+
+instance : CmRDT Nat Unit where
+  empty := 0
+  apply n _ := n
+  merge a _ := a
+
+instance : CmRDT Int Unit where
+  empty := 0
+  apply n _ := n
+  merge a _ := a
+
+instance : CmRDT String Unit where
+  empty := ""
+  apply s _ := s
+  merge a _ := a
+
+instance : CmRDT Bool Unit where
+  empty := false
+  apply b _ := b
+  merge a _ := a
 
 end Convergent

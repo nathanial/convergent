@@ -61,6 +61,7 @@ def merge (a b : PNCounter) : PNCounter :=
 instance : CmRDT PNCounter PNCounterOp where
   empty := empty
   apply := apply
+  merge := merge
 
 instance : CmRDTQuery PNCounter PNCounterOp Int where
   query := value

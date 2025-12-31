@@ -79,6 +79,7 @@ def merge [Ord α] (a b : LWWRegister α) : LWWRegister α :=
 instance [Ord α] : CmRDT (LWWRegister α) (LWWRegisterOp α) where
   empty := empty
   apply := apply
+  merge := merge
 
 instance [Ord α] : CmRDTQuery (LWWRegister α) (LWWRegisterOp α) (Option α) where
   query := get

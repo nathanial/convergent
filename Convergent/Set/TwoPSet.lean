@@ -71,6 +71,7 @@ def merge (a b : TwoPSet α) : TwoPSet α :=
 instance : CmRDT (TwoPSet α) (TwoPSetOp α) where
   empty := empty
   apply := apply
+  merge := merge
 
 instance [ToString α] : ToString (TwoPSet α) where
   toString tps :=

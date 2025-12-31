@@ -20,7 +20,7 @@ Convergent is an operation-based CRDT (CmRDT) library for Lean 4. CRDTs are data
 - **ReplicaId** - Unique identifier for each replica/node in the system
 - **Timestamp** - Lamport timestamps for total ordering, Vector clocks for causal ordering
 - **UniqueId** - Globally unique IDs combining replica + sequence number
-- **CmRDT** - Core typeclass defining `empty` and `apply` operations
+- **CmRDT** - Core typeclass defining `empty`, `apply`, and `merge` operations
 
 ### CRDTs
 
@@ -34,6 +34,7 @@ Convergent is an operation-based CRDT (CmRDT) library for Lean 4. CRDTs are data
 | TwoPSet | `Set/TwoPSet` | Two-phase set (no re-add after remove) |
 | ORSet | `Set/ORSet` | Observed-remove set (supports re-add) |
 | LWWMap | `Map/LWWMap` | Last-writer-wins map |
+| ORMap | `Map/ORMap` | Observed-remove map with nested CRDT support |
 | RGA | `Sequence/RGA` | Replicated growable array |
 
 ## Design Patterns
@@ -71,6 +72,27 @@ let value := newState.value
 Each CRDT also provides a `merge` function for state synchronization:
 ```lean
 let merged := GCounter.merge stateA stateB
+```
+
+### Nested CRDTs with ORMap
+
+ORMap supports nested CRDTs as values. The third type parameter specifies the operation type for nested values:
+
+```lean
+-- Simple map (non-CRDT values use Unit for ops)
+def SimpleMap := ORMap String Nat Unit
+
+-- Nested CRDT map (each key maps to a counter)
+def CounterMap := ORMap String PNCounter PNCounterOp
+
+-- Create map with nested counter
+let tag := UniqueId.new replica 1
+let m := CounterMap.empty
+  |> fun m => ORMap.apply m (.put "visitors" PNCounter.empty tag)
+  |> fun m => ORMap.apply m (.update "visitors" tag (.increment replica))
+
+-- Merge recursively merges nested values with matching tags
+let merged := ORMap.merge replica1Map replica2Map
 ```
 
 ## Dependencies

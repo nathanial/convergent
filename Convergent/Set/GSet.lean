@@ -58,6 +58,7 @@ def merge (a b : GSet α) : GSet α :=
 instance : CmRDT (GSet α) (GSetOp α) where
   empty := empty
   apply := apply
+  merge := merge
 
 instance [ToString α] : ToString (GSet α) where
   toString gs :=

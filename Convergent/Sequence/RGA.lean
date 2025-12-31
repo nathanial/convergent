@@ -190,6 +190,7 @@ def merge [Ord α] (a b : RGA α) : RGA α :=
 instance [Ord α] : CmRDT (RGA α) (RGAOp α) where
   empty := empty
   apply := apply
+  merge := merge
 
 instance [ToString α] : ToString (RGA α) where
   toString rga :=

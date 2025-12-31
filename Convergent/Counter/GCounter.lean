@@ -56,6 +56,7 @@ def merge (a b : GCounter) : GCounter :=
 instance : CmRDT GCounter GCounterOp where
   empty := empty
   apply := apply
+  merge := merge
 
 instance : CmRDTQuery GCounter GCounterOp Nat where
   query := value

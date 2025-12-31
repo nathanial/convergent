@@ -134,6 +134,7 @@ def merge [Ord α] (a b : LWWMap κ α) : LWWMap κ α :=
 instance [Ord α] : CmRDT (LWWMap κ α) (LWWMapOp κ α) where
   empty := empty
   apply := apply
+  merge := merge
 
 instance [ToString κ] [ToString α] : ToString (LWWMap κ α) where
   toString m :=

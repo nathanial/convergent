@@ -96,6 +96,7 @@ def merge (a b : ORSet α) : ORSet α :=
 instance : CmRDT (ORSet α) (ORSetOp α) where
   empty := empty
   apply := apply
+  merge := merge
 
 instance [ToString α] : ToString (ORSet α) where
   toString os :=

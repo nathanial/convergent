@@ -124,11 +124,12 @@ def merge [BEq α] [Ord α] (a b : MVRegister α) : MVRegister α :=
     | .eq => compare v1 v2 == .lt
   { values := result.toList }
 
-instance [Ord α] : CmRDT (MVRegister α) (MVRegisterOp α) where
+instance [BEq α] [Ord α] : CmRDT (MVRegister α) (MVRegisterOp α) where
   empty := empty
   apply := apply
+  merge := merge
 
-instance [Ord α] : CmRDTQuery (MVRegister α) (MVRegisterOp α) (List α) where
+instance [BEq α] [Ord α] : CmRDTQuery (MVRegister α) (MVRegisterOp α) (List α) where
   query := get
 
 instance [ToString α] : ToString (MVRegister α) where
