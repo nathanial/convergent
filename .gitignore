@@ -1,0 +1,17 @@
+# Lake build artifacts
+.lake/
+lake-packages/
+build/
+
+# Lean generated files
+*.olean
+*.ilean
+*.trace
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
