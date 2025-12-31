@@ -45,22 +45,49 @@ def getWithClocks (reg : MVRegister α) : List (α × VectorClock) :=
 private def isDominated (clock : VectorClock) (values : List (α × VectorClock)) : Bool :=
   values.any fun (_, existingClock) => VectorClock.dominates existingClock clock
 
-/-- Remove values that are dominated by the new clock -/
+/-- Check if two clocks are equivalent (mutually dominate) -/
+private def clocksEqual (a b : VectorClock) : Bool :=
+  VectorClock.dominates a b && VectorClock.dominates b a
+
+/-- Check if dominated by a strictly greater clock (not equivalent) -/
+private def isStrictlyDominated (clock : VectorClock) (values : List (α × VectorClock)) : Bool :=
+  values.any fun (_, existingClock) =>
+    VectorClock.dominates existingClock clock && !clocksEqual existingClock clock
+
+/-- Remove values that are strictly dominated by the new clock -/
 private def removeDominated (clock : VectorClock) (values : List (α × VectorClock)) : List (α × VectorClock) :=
-  values.filter fun (_, existingClock) => !VectorClock.dominates clock existingClock
+  values.filter fun (_, existingClock) =>
+    !VectorClock.dominates clock existingClock || clocksEqual clock existingClock
 
 /-- Apply a set operation.
-    - If the new value's clock dominates existing values, remove them
-    - If the new value is dominated, ignore it
+    - If the new value's clock is strictly dominated, ignore it
+    - If clocks are equivalent, use value comparison as tie-breaker
     - Otherwise, add it as a concurrent value -/
-def apply (reg : MVRegister α) (op : MVRegisterOp α) : MVRegister α :=
-  if isDominated op.clock reg.values then
-    -- New value is dominated, ignore it
+def apply [Ord α] (reg : MVRegister α) (op : MVRegisterOp α) : MVRegister α :=
+  -- Check if strictly dominated (not equivalent)
+  if isStrictlyDominated op.clock reg.values then
     reg
   else
-    -- Remove dominated values and add new value
-    let remaining := removeDominated op.clock reg.values
-    { values := (op.value, op.clock) :: remaining }
+    -- Check for equivalent clocks and use value as tie-breaker
+    let dominated := reg.values.filter fun (existingVal, existingClock) =>
+      if clocksEqual existingClock op.clock then
+        -- Equivalent clocks: keep the greater value
+        compare existingVal op.value != .gt
+      else
+        -- Strictly dominated by new clock
+        VectorClock.dominates op.clock existingClock
+    let remaining := reg.values.filter fun (existingVal, existingClock) =>
+      if clocksEqual existingClock op.clock then
+        compare existingVal op.value == .gt
+      else
+        !VectorClock.dominates op.clock existingClock
+    -- Only add new value if no equivalent clock with greater value exists
+    let hasGreaterEquivalent := reg.values.any fun (existingVal, existingClock) =>
+      clocksEqual existingClock op.clock && compare existingVal op.value == .gt
+    if hasGreaterEquivalent then
+      { values := remaining }
+    else
+      { values := (op.value, op.clock) :: remaining }
 
 /-- Create a set operation -/
 def set (value : α) (clock : VectorClock) : MVRegisterOp α :=
@@ -97,11 +124,11 @@ def merge [BEq α] [Ord α] (a b : MVRegister α) : MVRegister α :=
     | .eq => compare v1 v2 == .lt
   { values := result.toList }
 
-instance : CmRDT (MVRegister α) (MVRegisterOp α) where
+instance [Ord α] : CmRDT (MVRegister α) (MVRegisterOp α) where
   empty := empty
   apply := apply
 
-instance : CmRDTQuery (MVRegister α) (MVRegisterOp α) (List α) where
+instance [Ord α] : CmRDTQuery (MVRegister α) (MVRegisterOp α) (List α) where
   query := get
 
 instance [ToString α] : ToString (MVRegister α) where

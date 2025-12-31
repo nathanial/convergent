@@ -40,15 +40,20 @@ def get (reg : LWWRegister α) : Option α :=
 def getTimestamp (reg : LWWRegister α) : Option LamportTs :=
   reg.value.map Prod.snd
 
-/-- Apply a set operation -/
-def apply (reg : LWWRegister α) (op : LWWRegisterOp α) : LWWRegister α :=
+/-- Apply a set operation.
+    When timestamps are equal, uses value comparison as tie-breaker for commutativity. -/
+def apply [Ord α] (reg : LWWRegister α) (op : LWWRegisterOp α) : LWWRegister α :=
   match reg.value with
   | none => { value := some (op.value, op.timestamp) }
-  | some (_, existingTs) =>
-    if op.timestamp > existingTs then
-      { value := some (op.value, op.timestamp) }
-    else
-      reg
+  | some (existingVal, existingTs) =>
+    match compare op.timestamp existingTs with
+    | .gt => { value := some (op.value, op.timestamp) }
+    | .lt => reg
+    | .eq =>
+      -- Equal timestamps: use value comparison as tie-breaker
+      match compare op.value existingVal with
+      | .gt => { value := some (op.value, op.timestamp) }
+      | _ => reg
 
 /-- Create a set operation -/
 def set (value : α) (timestamp : LamportTs) : LWWRegisterOp α :=
@@ -71,11 +76,11 @@ def merge [Ord α] (a b : LWWRegister α) : LWWRegister α :=
       | .lt => b
       | .eq => a  -- Values are equal, either choice works
 
-instance : CmRDT (LWWRegister α) (LWWRegisterOp α) where
+instance [Ord α] : CmRDT (LWWRegister α) (LWWRegisterOp α) where
   empty := empty
   apply := apply
 
-instance : CmRDTQuery (LWWRegister α) (LWWRegisterOp α) (Option α) where
+instance [Ord α] : CmRDTQuery (LWWRegister α) (LWWRegisterOp α) (Option α) where
   query := get
 
 instance [ToString α] : ToString (LWWRegister α) where

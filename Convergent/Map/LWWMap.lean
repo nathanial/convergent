@@ -65,27 +65,45 @@ def size (m : LWWMap κ α) : Nat :=
   m.entries.fold (init := 0) fun acc _ (v, _) =>
     if v.isSome then acc + 1 else acc
 
-/-- Apply an operation -/
-def apply (m : LWWMap κ α) (op : LWWMapOp κ α) : LWWMap κ α :=
+/-- Compare Option α values for deterministic tie-breaking -/
+private def compareOptionVal [Ord α] (a b : Option α) : Ordering :=
+  match a, b with
+  | none, none => .eq
+  | none, some _ => .lt
+  | some _, none => .gt
+  | some va, some vb => compare va vb
+
+/-- Apply an operation.
+    When timestamps are equal, uses value comparison as tie-breaker for commutativity.
+    (some value > none, so put wins over delete with equal timestamp) -/
+def apply [Ord α] (m : LWWMap κ α) (op : LWWMapOp κ α) : LWWMap κ α :=
   match op with
   | .put key value timestamp =>
     match m.entries[key]? with
     | none =>
       { entries := m.entries.insert key (some value, timestamp) }
-    | some (_, existingTs) =>
-      if timestamp > existingTs then
-        { entries := m.entries.insert key (some value, timestamp) }
-      else
-        m
+    | some (existingVal, existingTs) =>
+      match compare timestamp existingTs with
+      | .gt => { entries := m.entries.insert key (some value, timestamp) }
+      | .lt => m
+      | .eq =>
+        -- Equal timestamps: use value comparison (some > none, so put wins over delete)
+        match compareOptionVal (some value) existingVal with
+        | .gt => { entries := m.entries.insert key (some value, timestamp) }
+        | _ => m
   | .delete key timestamp =>
     match m.entries[key]? with
     | none =>
       { entries := m.entries.insert key (none, timestamp) }
-    | some (_, existingTs) =>
-      if timestamp > existingTs then
-        { entries := m.entries.insert key (none, timestamp) }
-      else
-        m
+    | some (existingVal, existingTs) =>
+      match compare timestamp existingTs with
+      | .gt => { entries := m.entries.insert key (none, timestamp) }
+      | .lt => m
+      | .eq =>
+        -- Equal timestamps: use value comparison (none < some, so delete loses to put)
+        match compareOptionVal none existingVal with
+        | .gt => { entries := m.entries.insert key (none, timestamp) }
+        | _ => m
 
 /-- Create a put operation -/
 def put (key : κ) (value : α) (timestamp : LamportTs) : LWWMapOp κ α :=
@@ -94,14 +112,6 @@ def put (key : κ) (value : α) (timestamp : LamportTs) : LWWMapOp κ α :=
 /-- Create a delete operation -/
 def delete (key : κ) (timestamp : LamportTs) : LWWMapOp κ α :=
   .delete key timestamp
-
-/-- Compare Option α values for deterministic tie-breaking -/
-private def compareOptionVal [Ord α] (a b : Option α) : Ordering :=
-  match a, b with
-  | none, none => .eq
-  | none, some _ => .lt
-  | some _, none => .gt
-  | some va, some vb => compare va vb
 
 /-- Merge two maps (take entry with higher timestamp for each key).
     When timestamps are equal, uses value comparison as tie-breaker for commutativity. -/
@@ -121,7 +131,7 @@ def merge [Ord α] (a b : LWWMap κ α) : LWWMap κ α :=
         | .eq => acc  -- Values equal, keep existing (either works)
   { entries := merged }
 
-instance : CmRDT (LWWMap κ α) (LWWMapOp κ α) where
+instance [Ord α] : CmRDT (LWWMap κ α) (LWWMapOp κ α) where
   empty := empty
   apply := apply
 

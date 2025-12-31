@@ -455,6 +455,31 @@ instance : Arbitrary (RGAOp Nat) where
   twopsetEq (TwoPSet.apply (TwoPSet.apply s op1) op2)
             (TwoPSet.apply (TwoPSet.apply s op2) op1)
 
+-- LWWRegister apply commutes
+#test ∀ (s : LWWRegister Nat) (op1 op2 : LWWRegisterOp Nat),
+  lwwRegisterEq (LWWRegister.apply (LWWRegister.apply s op1) op2)
+                (LWWRegister.apply (LWWRegister.apply s op2) op1)
+
+-- MVRegister apply commutes
+#test ∀ (s : MVRegister Nat) (op1 op2 : MVRegisterOp Nat),
+  mvRegisterEq (MVRegister.apply (MVRegister.apply s op1) op2)
+               (MVRegister.apply (MVRegister.apply s op2) op1)
+
+-- ORSet apply commutes
+#test ∀ (s : ORSet Nat) (op1 op2 : ORSetOp Nat),
+  orsetEq (ORSet.apply (ORSet.apply s op1) op2)
+          (ORSet.apply (ORSet.apply s op2) op1)
+
+-- LWWMap apply commutes
+#test ∀ (s : LWWMap Nat Nat) (op1 op2 : LWWMapOp Nat Nat),
+  lwwMapEq (LWWMap.apply (LWWMap.apply s op1) op2)
+           (LWWMap.apply (LWWMap.apply s op2) op1)
+
+-- RGA apply commutes
+#test ∀ (s : RGA Nat) (op1 op2 : RGAOp Nat),
+  rgaEq (RGA.apply (RGA.apply s op1) op2)
+        (RGA.apply (RGA.apply s op2) op1)
+
 /-! ## Property Tests: Apply Idempotency -/
 
 -- GSet add is idempotent

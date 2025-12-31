@@ -9,22 +9,12 @@ Property-based tests using Plausible to verify CRDT laws.
 | Merge commutativity | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Merge associativity | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Merge idempotency | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Apply commutativity | ✓ | ✓ | ✗ | ✗ | ✓ | ✓ | ✗ | ✗ | ✗ |
+| Apply commutativity | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Apply idempotency | n/a | n/a | ✗ | ✗ | ✓ | ✓ | ✗ | ✗ | ✗ |
 
 Legend: ✓ = tested and passing, ✗ = not yet tested, n/a = not applicable
 
 ## Missing Tests
-
-### Apply Commutativity
-
-The following CRDTs need apply commutativity tests: `apply(apply(s,op1),op2) = apply(apply(s,op2),op1)`
-
-- LWWRegister
-- MVRegister
-- ORSet
-- LWWMap
-- RGA
 
 ### Apply Idempotency
 

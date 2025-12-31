@@ -106,24 +106,47 @@ private def insertAfter (nodes : List (RGANode α)) (afterId : Option UniqueId)
     go [] nodes
 
 /-- Apply an operation.
-    Maintains ID-sorted order for CRDT law compliance. -/
-def apply (rga : RGA α) (op : RGAOp α) : RGA α :=
+    Maintains ID-sorted order for CRDT law compliance.
+    For commutativity:
+    - Delete creates tombstone even if ID doesn't exist yet
+    - Insert with existing ID uses value comparison as tie-breaker -/
+def apply [Ord α] (rga : RGA α) (op : RGAOp α) : RGA α :=
   match op with
   | .insert afterId value id =>
-    if rga.containsId id then
-      -- Duplicate operation, ignore
-      rga
-    else
+    match rga.nodes.find? (·.id == id) with
+    | some existingNode =>
+      -- ID exists - check if we should replace (for commutativity with duplicate inserts)
+      match existingNode.value with
+      | none =>
+        -- Existing is tombstone, keep it (delete wins)
+        rga
+      | some existingVal =>
+        -- Both are inserts - use value comparison as tie-breaker
+        if compare value existingVal == .gt then
+          let newNodes := rga.nodes.map fun node =>
+            if node.id == id then { node with value := some value }
+            else node
+          { nodes := newNodes }
+        else
+          rga
+    | none =>
       let newNode : RGANode α := { id, value := some value }
       let inserted := insertAfter rga.nodes afterId newNode
       -- Sort by ID to maintain consistent ordering for CRDT laws
       let sorted := inserted.toArray.qsort fun a b => a.id < b.id
       { nodes := sorted.toList }
   | .delete id =>
-    let newNodes := rga.nodes.map fun node =>
-      if node.id == id then { node with value := none }
-      else node
-    { nodes := newNodes }
+    if rga.containsId id then
+      -- Mark existing node as tombstone
+      let newNodes := rga.nodes.map fun node =>
+        if node.id == id then { node with value := none }
+        else node
+      { nodes := newNodes }
+    else
+      -- Create tombstone for ID that doesn't exist yet (for commutativity)
+      let tombstone : RGANode α := { id, value := none }
+      let sorted := (tombstone :: rga.nodes).toArray.qsort fun a b => a.id < b.id
+      { nodes := sorted.toList }
 
 /-- Create an insert operation -/
 def insert (afterId : Option UniqueId) (value : α) (id : UniqueId) : RGAOp α :=
@@ -164,7 +187,7 @@ def merge [Ord α] (a b : RGA α) : RGA α :=
   let sorted := mergedNodes.toArray.qsort fun a b => a.id < b.id
   { nodes := sorted.toList }
 
-instance : CmRDT (RGA α) (RGAOp α) where
+instance [Ord α] : CmRDT (RGA α) (RGAOp α) where
   empty := empty
   apply := apply
 
