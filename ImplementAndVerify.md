@@ -8,7 +8,6 @@
 |------|:------:|-------------|
 | GCounter | ✓ | Grow-only counter (increment only) |
 | PNCounter | ✓ | Positive-negative counter (increment/decrement) |
-| BoundedCounter | ✓ | Counter with min/max bounds (soft bounds with clamped query) |
 
 ### Registers
 
@@ -62,22 +61,22 @@
 
 ### Core CRDT Laws
 
-| Property | GCounter | PNCounter | BoundedCtr | LWWReg | MVReg | GSet | TwoPSet | ORSet | LWWMap | ORMap | RGA | EWFlag | DWFlag |
-|----------|:--------:|:---------:|:----------:|:------:|:-----:|:----:|:-------:|:-----:|:------:|:-----:|:---:|:------:|:------:|
-| Merge commutativity | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Merge associativity | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Merge idempotency | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Apply commutativity | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Apply idempotency | n/a | n/a | n/a | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Property | GCounter | PNCounter | LWWReg | MVReg | GSet | TwoPSet | ORSet | LWWMap | ORMap | RGA | EWFlag | DWFlag |
+|----------|:--------:|:---------:|:------:|:-----:|:----:|:-------:|:-----:|:------:|:-----:|:---:|:------:|:------:|
+| Merge commutativity | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Merge associativity | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Merge idempotency | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Apply commutativity | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Apply idempotency | n/a | n/a | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 
 Legend: ✓ = tested and passing, ✗ = not yet tested, n/a = not applicable
 
 ### Convergence
 
-| Property | GCounter | PNCounter | BoundedCtr | LWWReg | MVReg | GSet | TwoPSet | ORSet | LWWMap | ORMap | RGA | EWFlag | DWFlag |
-|----------|:--------:|:---------:|:----------:|:------:|:-----:|:----:|:-------:|:-----:|:------:|:-----:|:---:|:------:|:------:|
-| 2-op convergence | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| 3-op convergence | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Property | GCounter | PNCounter | LWWReg | MVReg | GSet | TwoPSet | ORSet | LWWMap | ORMap | RGA | EWFlag | DWFlag |
+|----------|:--------:|:---------:|:------:|:-----:|:----:|:-------:|:-----:|:------:|:-----:|:---:|:------:|:------:|
+| 2-op convergence | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| 3-op convergence | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 
 Note: 2-op convergence covered by apply commutativity. 3-op tests forward vs reverse ordering.
 
@@ -108,20 +107,18 @@ Note: 2-op convergence covered by apply commutativity. 3-op tests forward vs rev
 | Get returns value after put | ORMap | ✓ |
 | Enable-wins (concurrent = enabled) | EWFlag | ✓ |
 | Disable-wins (concurrent = disabled) | DWFlag | ✓ |
-| Value clamped to bounds | BoundedCounter | ✓ |
-| Merge respects bounds | BoundedCounter | ✓ |
 
 ---
 
 ## Test Summary
 
-**Total Property Tests: 118**
+**Total Property Tests: 108**
 
-- Core CRDT laws: 39 tests (merge laws) + 13 tests (apply commutativity) + 15 tests (apply idempotency)
-- Convergence: 13 tests (3-op)
+- Core CRDT laws: 36 tests (merge laws) + 12 tests (apply commutativity) + 15 tests (apply idempotency)
+- Convergence: 12 tests (3-op)
 - Monotonicity: 4 tests
-- Type-specific: 19 tests (includes EWFlag/DWFlag/BoundedCounter semantics)
-- Additional semantics: 15 tests
+- Type-specific: 15 tests (includes EWFlag/DWFlag semantics)
+- Additional semantics: 14 tests
 
 ---
 
@@ -140,12 +137,6 @@ When implementing new CRDTs, they should satisfy:
 - [x] Enable-wins (EWFlag): concurrent enable + disable = enabled
 - [x] Disable-wins (DWFlag): concurrent enable + disable = disabled
 
-### BoundedCounter (Implemented ✓)
-- [x] Value stays within bounds (clamped query)
-- [x] Increment at max clamps visible value
-- [x] Decrement at min clamps visible value
-- [x] Merge respects bounds
-
 ### LWWElementSet
 - [ ] Apply idempotency
 - [ ] Later timestamp wins per element
@@ -162,7 +153,7 @@ lake build && lake test
 ## Test Files
 
 - `ConvergentTests/PropertyTests.lean` - Plausible property tests
-- `ConvergentTests/CounterTests.lean` - GCounter, PNCounter, BoundedCounter unit tests
+- `ConvergentTests/CounterTests.lean` - GCounter, PNCounter unit tests
 - `ConvergentTests/RegisterTests.lean` - LWWRegister, MVRegister unit tests
 - `ConvergentTests/SetTests.lean` - GSet, TwoPSet, ORSet unit tests
 - `ConvergentTests/MapTests.lean` - LWWMap, ORMap unit tests
