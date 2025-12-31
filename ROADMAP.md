@@ -1,0 +1,501 @@
+# Roadmap
+
+This document outlines potential improvements, new features, and code cleanup opportunities for the Convergent CRDT library.
+
+## Feature Proposals
+
+### [Priority: High] Add Delta-state CRDTs (delta-CRDTs)
+
+**Description:** Implement delta-state CRDTs that transmit only the state changes (deltas) rather than full operations or full state. This provides a middle ground between state-based and operation-based CRDTs with better bandwidth efficiency.
+
+**Rationale:** Delta-state CRDTs offer significant bandwidth savings over traditional state-based CRDTs while being more flexible than pure operation-based CRDTs. They are particularly valuable for mobile/IoT scenarios with limited bandwidth.
+
+**Affected Files:**
+- New file: `Convergent/Core/Delta.lean` (delta typeclass)
+- New file: `Convergent/Counter/DeltaGCounter.lean`
+- New file: `Convergent/Set/DeltaORSet.lean`
+- Updates to existing CRDTs to add delta extraction
+
+**Estimated Effort:** Large
+
+**Dependencies:** None
+
+---
+
+### [Priority: High] Add ORMap (Observed-Remove Map)
+
+**Description:** Implement an ORMap that combines ORSet semantics for keys with arbitrary CRDT values. This allows nested CRDTs within map values, enabling more complex distributed data structures.
+
+**Rationale:** LWWMap is limited to simple last-writer-wins semantics. ORMap enables building complex nested structures like JSON-like documents with per-field conflict resolution.
+
+**Affected Files:**
+- New file: `Convergent/Map/ORMap.lean`
+- Update `Convergent.lean` to export the new module
+
+**Estimated Effort:** Medium
+
+**Dependencies:** None
+
+---
+
+### [Priority: High] Add Serialization Support
+
+**Description:** Add JSON and binary serialization for all CRDT types to enable network transmission and persistence.
+
+**Rationale:** For practical use in distributed systems, CRDTs need to be serialized for network transmission and storage. Currently there is no serialization support.
+
+**Affected Files:**
+- New file: `Convergent/Serialization/Json.lean`
+- New file: `Convergent/Serialization/Binary.lean`
+- Updates to all CRDT types to derive or implement serialization
+
+**Estimated Effort:** Large
+
+**Dependencies:** May require a JSON library dependency
+
+---
+
+### [Priority: Medium] Add Bounded Counter
+
+**Description:** Implement a bounded counter CRDT that enforces minimum/maximum values while maintaining CRDT semantics. Useful for inventory systems, rate limiting, etc.
+
+**Rationale:** Many real-world use cases require counters with bounds (e.g., stock levels that cannot go negative). A proper bounded counter requires careful design to maintain commutativity.
+
+**Affected Files:**
+- New file: `Convergent/Counter/BoundedCounter.lean`
+- Update `Convergent.lean` to export the new module
+
+**Estimated Effort:** Medium
+
+**Dependencies:** None
+
+---
+
+### [Priority: Medium] Add LWWGraph or Add-Remove Graph
+
+**Description:** Implement a graph CRDT supporting vertex and edge operations.
+
+**Rationale:** Graph structures are common in social networks, dependency tracking, and many other domains. A graph CRDT would enable building distributed graph applications.
+
+**Affected Files:**
+- New file: `Convergent/Graph/LWWGraph.lean`
+- New file: `Convergent/Graph/ORGraph.lean`
+- Update `Convergent.lean` to export the new modules
+
+**Estimated Effort:** Large
+
+**Dependencies:** None
+
+---
+
+### [Priority: Medium] Add Causal Delivery Helper
+
+**Description:** Implement a causal delivery layer that buffers out-of-order operations and delivers them in causal order.
+
+**Rationale:** The current library assumes the application handles causal delivery. A built-in causal delivery layer would make it easier to build correct distributed systems.
+
+**Affected Files:**
+- New file: `Convergent/Delivery/CausalBuffer.lean`
+- New file: `Convergent/Delivery/ReliableBroadcast.lean`
+
+**Estimated Effort:** Large
+
+**Dependencies:** Requires VectorClock (already present)
+
+---
+
+### [Priority: Medium] Add Increment-by-N for Counters
+
+**Description:** Extend GCounter and PNCounter to support incrementing/decrementing by arbitrary positive values, not just 1.
+
+**Rationale:** Many use cases require adding or subtracting values other than 1 (e.g., adding 5 items to a cart). Currently this requires multiple increment operations.
+
+**Affected Files:**
+- `Convergent/Counter/GCounter.lean` (lines 23-28, 42-48)
+- `Convergent/Counter/PNCounter.lean` (lines 24-28, 41-54)
+
+**Estimated Effort:** Small
+
+**Dependencies:** None
+
+---
+
+### [Priority: Medium] Add Text CRDT (YATA/Fugue)
+
+**Description:** Implement a specialized text CRDT optimized for collaborative text editing, such as YATA or Fugue algorithm.
+
+**Rationale:** While RGA works for text, specialized text CRDTs like YATA or Fugue offer better interleaving behavior and performance for text editing scenarios.
+
+**Affected Files:**
+- New file: `Convergent/Sequence/Text.lean`
+- Update `Convergent.lean` to export the new module
+
+**Estimated Effort:** Large
+
+**Dependencies:** None
+
+---
+
+### [Priority: Low] Add JSON CRDT
+
+**Description:** Implement a JSON CRDT that supports nested documents with automatic conflict resolution at each level.
+
+**Rationale:** JSON is ubiquitous for data interchange. A JSON CRDT would enable building collaborative document editing applications.
+
+**Affected Files:**
+- New file: `Convergent/Document/JsonCRDT.lean`
+- Update `Convergent.lean` to export the new module
+
+**Estimated Effort:** Large
+
+**Dependencies:** ORMap, LWWRegister
+
+---
+
+### [Priority: Low] Add EWFlag (Enable-Wins Flag)
+
+**Description:** Implement an enable-wins flag CRDT where enable operations win over concurrent disable operations.
+
+**Rationale:** Useful for feature flags, permissions, and boolean settings where one direction should win.
+
+**Affected Files:**
+- New file: `Convergent/Flag/EWFlag.lean`
+- New file: `Convergent/Flag/DWFlag.lean` (disable-wins variant)
+- Update `Convergent.lean` to export the new modules
+
+**Estimated Effort:** Small
+
+**Dependencies:** None
+
+---
+
+## Code Improvements
+
+### [Priority: High] Use HashSet Instead of List in GSet
+
+**Current State:** `GSet` uses `List α` to store elements (line 15 of `GSet.lean`), requiring O(n) containment checks and O(n) duplicate detection on add.
+
+**Proposed Change:** Use `Std.HashSet` for O(1) average containment checks and insertion.
+
+**Benefits:** Significant performance improvement for sets with many elements.
+
+**Affected Files:**
+- `Convergent/Set/GSet.lean` (lines 14-17, 32-34, 43-46, 52-56)
+- `Convergent/Set/TwoPSet.lean` (depends on GSet)
+
+**Estimated Effort:** Small
+
+---
+
+### [Priority: High] Add Hashable Constraint Consistently
+
+**Current State:** `ORSet` requires `[Hashable α]` but `GSet` and `TwoPSet` only require `[BEq α]`, leading to inconsistent performance characteristics and constraints.
+
+**Proposed Change:** Either make all sets use HashMap/HashSet (requiring Hashable), or provide both variants.
+
+**Benefits:** Consistent performance and API across set types.
+
+**Affected Files:**
+- `Convergent/Set/GSet.lean`
+- `Convergent/Set/TwoPSet.lean`
+
+**Estimated Effort:** Small
+
+---
+
+### [Priority: High] Optimize RGA Operations
+
+**Current State:** RGA `insertAfter` uses list traversal (O(n)) and `merge` creates intermediate lists and uses qsort. The `findIndex` function at line 49 scans the list.
+
+**Proposed Change:** Use a more efficient data structure such as a balanced tree or skip list for maintaining the sequence. Consider using a rope-like structure for large documents.
+
+**Benefits:** Better performance for long sequences, essential for text editing use cases.
+
+**Affected Files:**
+- `Convergent/Sequence/RGA.lean` (lines 49, 76-106, 133-149)
+
+**Estimated Effort:** Large
+
+---
+
+### [Priority: Medium] Extract Common Decidable Boilerplate
+
+**Current State:** `LamportTs`, `UniqueId`, and other types have nearly identical boilerplate for `Decidable (a < b)` and `Decidable (a <= b)` instances (see lines 52-62 in `Timestamp.lean`, lines 43-53 in `UniqueId.lean`).
+
+**Proposed Change:** Create a helper function or derive macro to generate these instances from the `Ord` instance.
+
+**Benefits:** Reduced code duplication, easier maintenance.
+
+**Affected Files:**
+- `Convergent/Core/Timestamp.lean` (lines 52-62)
+- `Convergent/Core/UniqueId.lean` (lines 43-53)
+- Potentially create new file: `Convergent/Core/Ordering.lean`
+
+**Estimated Effort:** Small
+
+---
+
+### [Priority: Medium] Add Monadic Interface for Operations
+
+**Current State:** Applying operations requires manual threading of state:
+```lean
+let gc := GCounter.empty
+  |> fun s => GCounter.apply s (GCounter.increment r1)
+  |> fun s => GCounter.apply s (GCounter.increment r1)
+```
+
+**Proposed Change:** Add a `StateT`-based or custom monad for cleaner operation chaining:
+```lean
+let gc := runCRDT GCounter.empty do
+  increment r1
+  increment r1
+```
+
+**Benefits:** More ergonomic API, cleaner user code.
+
+**Affected Files:**
+- New file: `Convergent/Core/Monad.lean`
+- Updates to all CRDT modules to add monadic helpers
+
+**Estimated Effort:** Medium
+
+---
+
+### [Priority: Medium] Add Efficient Bulk Operations
+
+**Current State:** `CmRDT.applyMany` applies operations one at a time via `foldl` (line 33-34 of `CmRDT.lean`).
+
+**Proposed Change:** Add specialized bulk operation methods to each CRDT that can batch operations more efficiently (e.g., bulk insert for sets, bulk increment for counters).
+
+**Benefits:** Better performance for high-throughput scenarios.
+
+**Affected Files:**
+- `Convergent/Core/CmRDT.lean`
+- All CRDT implementation files
+
+**Estimated Effort:** Medium
+
+---
+
+### [Priority: Medium] Add Configurable Tie-Breaking Strategy
+
+**Current State:** Timestamp ties are always broken by replica ID (higher replica wins). This is hardcoded in `LamportTs.compare` (line 39).
+
+**Proposed Change:** Make tie-breaking configurable (e.g., add-wins vs remove-wins, higher vs lower replica ID).
+
+**Benefits:** More flexible conflict resolution policies.
+
+**Affected Files:**
+- `Convergent/Core/Timestamp.lean` (lines 36-41)
+- All CRDTs using LamportTs
+
+**Estimated Effort:** Medium
+
+**Dependencies:** May require type-level configuration or runtime options
+
+---
+
+### [Priority: Low] Add Operation Logging/Audit Trail
+
+**Current State:** Operations are applied directly with no history.
+
+**Proposed Change:** Add an optional wrapper that maintains an operation log for debugging, auditing, or replay.
+
+**Benefits:** Better debugging, ability to replay history, audit compliance.
+
+**Affected Files:**
+- New file: `Convergent/Debug/OpLog.lean`
+
+**Estimated Effort:** Medium
+
+---
+
+### [Priority: Low] Add Pruning/Garbage Collection for Tombstones
+
+**Current State:** RGA and ORSet accumulate tombstones forever. In RGA, deleted nodes remain in the list with `value := none` (line 120-122). In ORSet, erased elements are removed from the map but tags accumulate.
+
+**Proposed Change:** Add garbage collection mechanisms that can safely prune tombstones when all replicas have observed the deletion.
+
+**Benefits:** Reduced memory usage for long-running systems.
+
+**Affected Files:**
+- `Convergent/Sequence/RGA.lean`
+- `Convergent/Set/ORSet.lean`
+- New file: `Convergent/GC/TombstoneGC.lean`
+
+**Estimated Effort:** Large
+
+**Dependencies:** Requires tracking of replica state (causal stability)
+
+---
+
+## Code Cleanup
+
+### [Priority: High] Add Missing CmRDTQuery Instances
+
+**Issue:** Not all CRDTs have `CmRDTQuery` instances despite having obvious query values.
+
+**Location:**
+- `Convergent/Set/GSet.lean` - missing `CmRDTQuery` (could query `toList`)
+- `Convergent/Set/TwoPSet.lean` - missing `CmRDTQuery` (could query `toList`)
+- `Convergent/Set/ORSet.lean` - missing `CmRDTQuery` (could query `toList`)
+- `Convergent/Sequence/RGA.lean` - missing `CmRDTQuery` (could query `toList`)
+
+**Action Required:** Add `CmRDTQuery` instances to all CRDTs for consistency.
+
+**Estimated Effort:** Small
+
+---
+
+### [Priority: High] Add Comprehensive Documentation
+
+**Issue:** While top-level module comments exist, many functions lack documentation. The library would benefit from more examples and explanation of edge cases.
+
+**Location:**
+- All CRDT files lack detailed function-level documentation
+- No doc comments on private helper functions
+
+**Action Required:**
+1. Add doc comments to all public functions explaining parameters and behavior
+2. Add examples in doc comments
+3. Document edge cases and concurrent operation semantics
+
+**Estimated Effort:** Medium
+
+---
+
+### [Priority: Medium] Standardize Constructor Naming
+
+**Issue:** Inconsistent constructor naming across modules:
+- `UniqueId.new` vs `UniqueId.mk` (README uses `.mk` but code has `.new`)
+- `LamportTs.new` vs `LamportTs.mk` (README uses `.mk` but code has `.new`)
+
+**Location:**
+- `Convergent/Core/UniqueId.lean` (line 24: uses `new`)
+- `Convergent/Core/Timestamp.lean` (line 23: uses `new`)
+- `README.md` (lines 62, 69, 89: uses `mk`)
+
+**Action Required:** Either update code to use `.mk` or update README to use `.new` for consistency.
+
+**Estimated Effort:** Small
+
+---
+
+### [Priority: Medium] Add Property-Based Tests
+
+**Issue:** Current tests only cover specific scenarios. Property-based tests would verify commutativity, idempotency, and convergence properties.
+
+**Location:**
+- `ConvergentTests/` directory
+
+**Action Required:**
+1. Add dependency on `plausible` or similar property-testing library
+2. Add property tests for:
+   - Commutativity: `apply (apply s op1) op2 = apply (apply s op2) op1` for concurrent ops
+   - Idempotency: `apply (apply s op) op = apply s op`
+   - Merge commutativity: `merge a b = merge b a`
+   - Merge associativity: `merge (merge a b) c = merge a (merge b c)`
+   - Merge idempotency: `merge a a = a`
+
+**Estimated Effort:** Medium
+
+**Dependencies:** Property-testing library (e.g., plausible)
+
+---
+
+### [Priority: Medium] Add VectorClock Equality Fix
+
+**Issue:** `VectorClock.BEq` implementation at line 112-117 of `Timestamp.lean` has a potential issue: it only checks that all keys in both clocks have equal values, but doesn't verify that the key sets are identical. Two clocks could be considered equal even if one has extra zero-valued entries.
+
+**Location:**
+- `Convergent/Core/Timestamp.lean` (lines 112-117)
+
+**Action Required:** Fix the equality check to properly handle zero-valued entries and ensure structural equality.
+
+**Estimated Effort:** Small
+
+---
+
+### [Priority: Medium] Add Merge Tests for All CRDTs
+
+**Issue:** Tests cover operations well but merge tests are sparse. Only GCounter has a merge test. Other CRDTs lack merge test coverage.
+
+**Location:**
+- `ConvergentTests/CounterTests.lean` - only GCounter has merge test (line 38-49)
+- `ConvergentTests/RegisterTests.lean` - no merge tests
+- `ConvergentTests/SetTests.lean` - no merge tests
+- `ConvergentTests/MapTests.lean` - no merge tests
+- `ConvergentTests/SequenceTests.lean` - no merge tests
+
+**Action Required:** Add merge tests for all CRDTs covering:
+- Merge with empty
+- Merge with self
+- Merge of divergent states
+- Merge commutativity
+
+**Estimated Effort:** Medium
+
+---
+
+### [Priority: Low] Remove Unused Imports
+
+**Issue:** Some files may have unused imports (e.g., `Std.Data.HashMap` in files that might not use it).
+
+**Location:** All source files
+
+**Action Required:** Audit imports and remove any that are unused.
+
+**Estimated Effort:** Small
+
+---
+
+### [Priority: Low] Add Benchmarks
+
+**Issue:** No performance benchmarks exist to track performance over time.
+
+**Location:** Would be new files
+
+**Action Required:**
+1. Create `ConvergentBench/` directory
+2. Add benchmarks for each CRDT type
+3. Include benchmarks for:
+   - Single operations
+   - Bulk operations
+   - Merge operations
+   - Large state handling
+
+**Estimated Effort:** Medium
+
+---
+
+### [Priority: Low] Improve Error Messages
+
+**Issue:** The library uses `Option` types for missing values but no error messages explain why operations might fail or return `none`.
+
+**Location:** All CRDT query functions returning `Option`
+
+**Action Required:** Consider adding `Except` variants for operations that need detailed error information, or add documentation explaining when `none` is returned.
+
+**Estimated Effort:** Small
+
+---
+
+## Architectural Considerations
+
+### Consider Adding a Typeclass Hierarchy
+
+The current `CmRDT` and `CmRDTQuery` typeclasses could be expanded into a richer hierarchy:
+- `Semilattice` - for merge operations
+- `CvRDT` - state-based CRDTs
+- `CmRDT` - operation-based CRDTs
+- `DeltaCRDT` - delta-state CRDTs
+
+This would enable more generic algorithms and better code reuse.
+
+### Consider Separating State and Operations
+
+Currently each CRDT defines both its state type and operation type. Consider using a more generic approach where operations are defined separately and can be composed.
+
+### Consider Adding Middleware/Interceptor Pattern
+
+For cross-cutting concerns like logging, metrics, and validation, a middleware pattern could wrap CRDT operations without modifying the core types.
