@@ -7,7 +7,7 @@ Property-based tests using Plausible to verify CRDT laws.
 | Property | GCounter | PNCounter | LWWReg | MVReg | GSet | TwoPSet | ORSet | LWWMap | RGA |
 |----------|:--------:|:---------:|:------:|:-----:|:----:|:-------:|:-----:|:------:|:---:|
 | Merge commutativity | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Merge associativity | ✓ | ✓ | ✓ | ✗ | ✓ | ✓ | ✓ | ✗ | ✗ |
+| Merge associativity | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Merge idempotency | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Apply commutativity | ✓ | ✓ | ✗ | ✗ | ✓ | ✓ | ✗ | ✗ | ✗ |
 | Apply idempotency | n/a | n/a | ✗ | ✗ | ✓ | ✓ | ✗ | ✗ | ✗ |
@@ -15,14 +15,6 @@ Property-based tests using Plausible to verify CRDT laws.
 Legend: ✓ = tested and passing, ✗ = not yet tested, n/a = not applicable
 
 ## Missing Tests
-
-### Merge Associativity
-
-The following CRDTs need associativity tests: `merge(merge(a,b),c) = merge(a,merge(b,c))`
-
-- MVRegister
-- LWWMap
-- RGA
 
 ### Apply Commutativity
 

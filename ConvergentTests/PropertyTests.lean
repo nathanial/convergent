@@ -393,6 +393,9 @@ instance : Arbitrary (RGAOp Nat) where
 
 -- MVRegister Merge Laws
 #test ∀ (a b : MVRegister Nat), mvRegisterEq (MVRegister.merge a b) (MVRegister.merge b a)
+#test ∀ (a b c : MVRegister Nat),
+  mvRegisterEq (MVRegister.merge (MVRegister.merge a b) c)
+               (MVRegister.merge a (MVRegister.merge b c))
 #test ∀ (a : MVRegister Nat), mvRegisterEq (MVRegister.merge a a) a
 
 -- GSet Merge Laws
@@ -418,10 +421,16 @@ instance : Arbitrary (RGAOp Nat) where
 
 -- LWWMap Merge Laws
 #test ∀ (a b : LWWMap Nat Nat), lwwMapEq (LWWMap.merge a b) (LWWMap.merge b a)
+#test ∀ (a b c : LWWMap Nat Nat),
+  lwwMapEq (LWWMap.merge (LWWMap.merge a b) c)
+           (LWWMap.merge a (LWWMap.merge b c))
 #test ∀ (a : LWWMap Nat Nat), lwwMapEq (LWWMap.merge a a) a
 
 -- RGA Merge Laws
 #test ∀ (a b : RGA Nat), rgaEq (RGA.merge a b) (RGA.merge b a)
+#test ∀ (a b c : RGA Nat),
+  rgaEq (RGA.merge (RGA.merge a b) c)
+        (RGA.merge a (RGA.merge b c))
 #test ∀ (a : RGA Nat), rgaEq (RGA.merge a a) a
 
 /-! ## Property Tests: Apply Commutativity -/
