@@ -589,6 +589,26 @@ instance : Arbitrary (RGAOp Nat) where
   let rga' := RGA.apply rga (RGA.delete id)
   rga'.containsId id && rga'.length == 0
 
+/-! ## Property Tests: Monotonicity -/
+
+-- GSet elements are never removed (add element, apply another op, element still there)
+#test ∀ (gs : GSet Nat) (v : Nat) (op : GSetOp Nat),
+  let gs' := GSet.apply gs (GSet.add v)
+  let gs'' := GSet.apply gs' op
+  gs''.contains v
+
+-- TwoPSet added set never shrinks (if element added successfully, it stays in added set)
+#test ∀ (tps : TwoPSet Nat) (v : Nat) (op : TwoPSetOp Nat),
+  let tps' := TwoPSet.apply tps (TwoPSet.add v)
+  -- Only test if v was actually added (not blocked by tombstone)
+  tps'.added.contains v → (TwoPSet.apply tps' op).added.contains v
+
+-- TwoPSet removed set never shrinks (remove element, apply another op, still in removed set)
+#test ∀ (tps : TwoPSet Nat) (v : Nat) (op : TwoPSetOp Nat),
+  let tps' := TwoPSet.apply tps (TwoPSet.remove v)
+  let tps'' := TwoPSet.apply tps' op
+  tps''.removed.contains v
+
 /-! ## Property Tests: Convergence -/
 
 -- Convergence: same ops in different order produce same result

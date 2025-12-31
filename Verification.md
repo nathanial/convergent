@@ -31,10 +31,10 @@ Properties that values/sets only grow, never shrink.
 
 | Property | GCounter | PNCounter | LWWReg | MVReg | GSet | TwoPSet | ORSet | LWWMap | RGA |
 |----------|:--------:|:---------:|:------:|:-----:|:----:|:-------:|:-----:|:------:|:---:|
-| Value never decreases | ✗ | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
-| Elements never removed | n/a | n/a | n/a | n/a | ✗ | n/a | n/a | n/a | n/a |
-| Added set never shrinks | n/a | n/a | n/a | n/a | n/a | ✗ | n/a | n/a | n/a |
-| Removed set never shrinks | n/a | n/a | n/a | n/a | n/a | ✗ | n/a | n/a | n/a |
+| Value never decreases | ✓ | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
+| Elements never removed | n/a | n/a | n/a | n/a | ✓ | n/a | n/a | n/a | n/a |
+| Added set never shrinks | n/a | n/a | n/a | n/a | n/a | ✓ | n/a | n/a | n/a |
+| Removed set never shrinks | n/a | n/a | n/a | n/a | n/a | ✓ | n/a | n/a | n/a |
 
 ## Type-Specific Semantics Coverage Matrix
 
