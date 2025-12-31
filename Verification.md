@@ -14,20 +14,42 @@ Property-based tests using Plausible to verify CRDT laws.
 
 Legend: ✓ = tested and passing, ✗ = not yet tested, n/a = not applicable
 
-## Other Properties Not Yet Tested
+## Convergence Coverage Matrix
 
-### Convergence
-All replicas receiving the same set of operations (in any order) should reach the same state.
+Property: All replicas receiving the same set of operations (in any order) reach the same state.
 
-### Monotonicity
-- GCounter: value never decreases
-- GSet: elements never removed
-- TwoPSet: added/removed sets never shrink
+| Property | GCounter | PNCounter | LWWReg | MVReg | GSet | TwoPSet | ORSet | LWWMap | RGA |
+|----------|:--------:|:---------:|:------:|:-----:|:----:|:-------:|:-----:|:------:|:---:|
+| Convergence (2 ops) | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| Convergence (3 ops) | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
 
-### Type-Specific Semantics
-- ORSet: can re-add after remove with new tag
-- LWW types: later timestamps always win
-- MVRegister: vector clock causality (dominated values removed)
+## Monotonicity Coverage Matrix
+
+Properties that values/sets only grow, never shrink.
+
+| Property | GCounter | PNCounter | LWWReg | MVReg | GSet | TwoPSet | ORSet | LWWMap | RGA |
+|----------|:--------:|:---------:|:------:|:-----:|:----:|:-------:|:-----:|:------:|:---:|
+| Value never decreases | ✗ | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
+| Elements never removed | n/a | n/a | n/a | n/a | ✗ | n/a | n/a | n/a | n/a |
+| Added set never shrinks | n/a | n/a | n/a | n/a | n/a | ✗ | n/a | n/a | n/a |
+| Removed set never shrinks | n/a | n/a | n/a | n/a | n/a | ✗ | n/a | n/a | n/a |
+
+## Type-Specific Semantics Coverage Matrix
+
+Behavioral properties unique to each CRDT type.
+
+| Property | Applicable CRDTs | Status |
+|----------|------------------|:------:|
+| Later timestamp wins | LWWReg, LWWMap | ✗ |
+| Dominated values removed | MVReg | ✗ |
+| Concurrent values preserved | MVReg | ✗ |
+| Re-add after remove works | ORSet | ✗ |
+| Remove-then-add is add | ORSet | ✗ |
+| Removed cannot re-add | TwoPSet | ✗ |
+| Insert ordering preserved | RGA | ✗ |
+| Delete creates tombstone | RGA | ✗ |
+| Increment adds exactly 1 | GCounter | ✗ |
+| Inc/dec are inverses | PNCounter | ✗ |
 
 ## Test Files
 
