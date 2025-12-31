@@ -589,4 +589,62 @@ instance : Arbitrary (RGAOp Nat) where
   let rga' := RGA.apply rga (RGA.delete id)
   rga'.containsId id && rga'.length == 0
 
+/-! ## Property Tests: Convergence -/
+
+-- Convergence: same ops in different order produce same result
+
+-- GCounter convergence (3 ops)
+#test ∀ (gc : GCounter) (op1 op2 op3 : GCounterOp),
+  let forward := GCounter.apply (GCounter.apply (GCounter.apply gc op1) op2) op3
+  let reverse := GCounter.apply (GCounter.apply (GCounter.apply gc op3) op2) op1
+  gcounterEq forward reverse
+
+-- PNCounter convergence (3 ops)
+#test ∀ (pn : PNCounter) (op1 op2 op3 : PNCounterOp),
+  let forward := PNCounter.apply (PNCounter.apply (PNCounter.apply pn op1) op2) op3
+  let reverse := PNCounter.apply (PNCounter.apply (PNCounter.apply pn op3) op2) op1
+  pncounterEq forward reverse
+
+-- LWWRegister convergence (3 ops)
+#test ∀ (reg : LWWRegister Nat) (op1 op2 op3 : LWWRegisterOp Nat),
+  let forward := LWWRegister.apply (LWWRegister.apply (LWWRegister.apply reg op1) op2) op3
+  let reverse := LWWRegister.apply (LWWRegister.apply (LWWRegister.apply reg op3) op2) op1
+  lwwRegisterEq forward reverse
+
+-- MVRegister convergence (3 ops)
+#test ∀ (reg : MVRegister Nat) (op1 op2 op3 : MVRegisterOp Nat),
+  let forward := MVRegister.apply (MVRegister.apply (MVRegister.apply reg op1) op2) op3
+  let reverse := MVRegister.apply (MVRegister.apply (MVRegister.apply reg op3) op2) op1
+  mvRegisterEq forward reverse
+
+-- GSet convergence (3 ops)
+#test ∀ (gs : GSet Nat) (op1 op2 op3 : GSetOp Nat),
+  let forward := GSet.apply (GSet.apply (GSet.apply gs op1) op2) op3
+  let reverse := GSet.apply (GSet.apply (GSet.apply gs op3) op2) op1
+  gsetEq forward reverse
+
+-- TwoPSet convergence (3 ops)
+#test ∀ (tps : TwoPSet Nat) (op1 op2 op3 : TwoPSetOp Nat),
+  let forward := TwoPSet.apply (TwoPSet.apply (TwoPSet.apply tps op1) op2) op3
+  let reverse := TwoPSet.apply (TwoPSet.apply (TwoPSet.apply tps op3) op2) op1
+  twopsetEq forward reverse
+
+-- ORSet convergence (3 ops)
+#test ∀ (os : ORSet Nat) (op1 op2 op3 : ORSetOp Nat),
+  let forward := ORSet.apply (ORSet.apply (ORSet.apply os op1) op2) op3
+  let reverse := ORSet.apply (ORSet.apply (ORSet.apply os op3) op2) op1
+  orsetEq forward reverse
+
+-- LWWMap convergence (3 ops)
+#test ∀ (m : LWWMap Nat Nat) (op1 op2 op3 : LWWMapOp Nat Nat),
+  let forward := LWWMap.apply (LWWMap.apply (LWWMap.apply m op1) op2) op3
+  let reverse := LWWMap.apply (LWWMap.apply (LWWMap.apply m op3) op2) op1
+  lwwMapEq forward reverse
+
+-- RGA convergence (3 ops)
+#test ∀ (rga : RGA Nat) (op1 op2 op3 : RGAOp Nat),
+  let forward := RGA.apply (RGA.apply (RGA.apply rga op1) op2) op3
+  let reverse := RGA.apply (RGA.apply (RGA.apply rga op3) op2) op1
+  rgaEq forward reverse
+
 end ConvergentTests.PropertyTests

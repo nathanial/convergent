@@ -20,8 +20,10 @@ Property: All replicas receiving the same set of operations (in any order) reach
 
 | Property | GCounter | PNCounter | LWWReg | MVReg | GSet | TwoPSet | ORSet | LWWMap | RGA |
 |----------|:--------:|:---------:|:------:|:-----:|:----:|:-------:|:-----:|:------:|:---:|
-| Convergence (2 ops) | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
-| Convergence (3 ops) | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| Convergence (2 ops) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Convergence (3 ops) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+
+Note: 2-op convergence is covered by apply commutativity tests. 3-op tests verify forward vs reverse ordering.
 
 ## Monotonicity Coverage Matrix
 
