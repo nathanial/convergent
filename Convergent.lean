@@ -13,6 +13,7 @@
   ### Counters
   - `GCounter` - Grow-only counter
   - `PNCounter` - Positive-negative counter (supports decrement)
+  - `BoundedCounter` - Counter with min/max bounds
 
   ### Registers
   - `LWWRegister` - Last-writer-wins register
@@ -64,6 +65,7 @@ import Convergent.Core.CmRDT
 -- Counters
 import Convergent.Counter.GCounter
 import Convergent.Counter.PNCounter
+import Convergent.Counter.BoundedCounter
 
 -- Registers
 import Convergent.Register.LWWRegister

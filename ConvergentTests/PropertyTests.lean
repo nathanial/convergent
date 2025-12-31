@@ -84,6 +84,10 @@ def ewflagEq (a b : EWFlag) : Bool :=
 def dwflagEq (a b : DWFlag) : Bool :=
   gsetEq a.enabled b.enabled && gsetEq a.disabled b.disabled
 
+/-- Compare BoundedCounters by value and bounds -/
+def boundedCounterEq (a b : BoundedCounter) : Bool :=
+  a.value == b.value && a.min == b.min && a.max == b.max
+
 /-! ## Random Generators -/
 
 /-- Generate a small Nat in range [0, n] -/
@@ -139,6 +143,11 @@ instance : Repr DWFlagOp where
   reprPrec op _ := match op with
     | .enable r => s!"DWFlagOp.enable({repr r})"
     | .disable r => s!"DWFlagOp.disable({repr r})"
+
+instance : Repr BoundedCounterOp where
+  reprPrec op _ := match op with
+    | .increment r => s!"BoundedCounterOp.increment({repr r})"
+    | .decrement r => s!"BoundedCounterOp.decrement({repr r})"
 
 /-! ## Shrinkable Instances -/
 
@@ -226,6 +235,12 @@ instance : Shrinkable DWFlag where
 instance : Shrinkable DWFlagOp where
   shrink _ := []
 
+instance : Shrinkable BoundedCounter where
+  shrink _ := [BoundedCounter.empty 0 10]
+
+instance : Shrinkable BoundedCounterOp where
+  shrink _ := []
+
 /-! ## Arbitrary Instances for Core Types -/
 
 instance : Arbitrary ReplicaId where
@@ -282,6 +297,23 @@ instance : Arbitrary PNCounter where
     return pn
 
 instance : Arbitrary PNCounterOp where
+  arbitrary := do
+    let replica ← Arbitrary.arbitrary
+    let isInc ← genSmallNat 1
+    return if isInc == 0 then .increment replica else .decrement replica
+
+instance : Arbitrary BoundedCounter where
+  arbitrary := do
+    let numOps ← genSmallNat 5
+    let mut bc := BoundedCounter.empty 0 10
+    for _ in [0:numOps] do
+      let replica ← Arbitrary.arbitrary
+      let isInc ← genSmallNat 1
+      let op := if isInc == 0 then BoundedCounter.increment replica else BoundedCounter.decrement replica
+      bc := BoundedCounter.apply bc op
+    return bc
+
+instance : Arbitrary BoundedCounterOp where
   arbitrary := do
     let replica ← Arbitrary.arbitrary
     let isInc ← genSmallNat 1
@@ -494,6 +526,13 @@ instance : Arbitrary DWFlagOp where
               (PNCounter.merge a (PNCounter.merge b c))
 #test ∀ (a : PNCounter), pncounterEq (PNCounter.merge a a) a
 
+-- BoundedCounter Merge Laws
+#test ∀ (a b : BoundedCounter), boundedCounterEq (BoundedCounter.merge a b) (BoundedCounter.merge b a)
+#test ∀ (a b c : BoundedCounter),
+  boundedCounterEq (BoundedCounter.merge (BoundedCounter.merge a b) c)
+                   (BoundedCounter.merge a (BoundedCounter.merge b c))
+#test ∀ (a : BoundedCounter), boundedCounterEq (BoundedCounter.merge a a) a
+
 -- LWWRegister Merge Laws
 #test ∀ (a b : LWWRegister Nat), lwwRegisterEq (LWWRegister.merge a b) (LWWRegister.merge b a)
 #test ∀ (a b c : LWWRegister Nat),
@@ -575,6 +614,11 @@ instance : Arbitrary DWFlagOp where
 #test ∀ (s : PNCounter) (op1 op2 : PNCounterOp),
   pncounterEq (PNCounter.apply (PNCounter.apply s op1) op2)
               (PNCounter.apply (PNCounter.apply s op2) op1)
+
+-- BoundedCounter apply commutes (value-based, due to bounds checking)
+#test ∀ (s : BoundedCounter) (op1 op2 : BoundedCounterOp),
+  boundedCounterEq (BoundedCounter.apply (BoundedCounter.apply s op1) op2)
+                   (BoundedCounter.apply (BoundedCounter.apply s op2) op1)
 
 -- GSet apply commutes
 #test ∀ (s : GSet Nat) (op1 op2 : GSetOp Nat),
@@ -731,6 +775,31 @@ instance : Arbitrary DWFlagOp where
 #test ∀ (pn : PNCounter) (r : ReplicaId),
   let pn' := PNCounter.apply pn (PNCounter.decrement r)
   pn'.value == pn.value - 1
+
+-- BoundedCounter value stays within bounds
+#test ∀ (bc : BoundedCounter) (op : BoundedCounterOp),
+  let bc' := BoundedCounter.apply bc op
+  bc'.value >= bc'.min && bc'.value <= bc'.max
+
+-- BoundedCounter increment at max clamps visible value
+#test ∀ (r : ReplicaId),
+  let bc := BoundedCounter.empty 0 3
+    |> fun s => BoundedCounter.apply s (BoundedCounter.increment r)
+    |> fun s => BoundedCounter.apply s (BoundedCounter.increment r)
+    |> fun s => BoundedCounter.apply s (BoundedCounter.increment r)
+    |> fun s => BoundedCounter.apply s (BoundedCounter.increment r)  -- exceeds max
+  bc.value == 3  -- visible value stays at max
+
+-- BoundedCounter decrement at min clamps visible value
+#test ∀ (r : ReplicaId),
+  let bc := BoundedCounter.empty 0 10
+    |> fun s => BoundedCounter.apply s (BoundedCounter.decrement r)
+  bc.value == 0  -- visible value stays at min
+
+-- BoundedCounter merge respects bounds (value is clamped)
+#test ∀ (bc1 bc2 : BoundedCounter),
+  let merged := BoundedCounter.merge bc1 bc2
+  merged.value >= merged.min && merged.value <= merged.max
 
 -- GSet contains element after add
 #test ∀ (gs : GSet Nat) (v : Nat),
@@ -925,6 +994,12 @@ instance : Arbitrary DWFlagOp where
   let forward := PNCounter.apply (PNCounter.apply (PNCounter.apply pn op1) op2) op3
   let reverse := PNCounter.apply (PNCounter.apply (PNCounter.apply pn op3) op2) op1
   pncounterEq forward reverse
+
+-- BoundedCounter convergence (3 ops)
+#test ∀ (bc : BoundedCounter) (op1 op2 op3 : BoundedCounterOp),
+  let forward := BoundedCounter.apply (BoundedCounter.apply (BoundedCounter.apply bc op1) op2) op3
+  let reverse := BoundedCounter.apply (BoundedCounter.apply (BoundedCounter.apply bc op3) op2) op1
+  boundedCounterEq forward reverse
 
 -- LWWRegister convergence (3 ops)
 #test ∀ (reg : LWWRegister Nat) (op1 op2 op3 : LWWRegisterOp Nat),
