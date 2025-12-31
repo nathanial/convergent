@@ -105,6 +105,104 @@ test "ORSet concurrent add wins" := do
     |> fun s => ORSet.apply s removeOp
   (os'.contains 42) ≡ true
 
+testSuite "LWWElementSet"
+
+test "LWWElementSet empty contains nothing" := do
+  let set : LWWElementSet Nat := LWWElementSet.empty
+  (set.contains 1) ≡ false
+
+test "LWWElementSet add makes present" := do
+  let r1 : ReplicaId := 1
+  let ts := LamportTs.new 1 r1
+  let set := LWWElementSet.apply LWWElementSet.empty (LWWElementSet.add 42 ts)
+  (set.contains 42) ≡ true
+
+test "LWWElementSet remove makes absent" := do
+  let r1 : ReplicaId := 1
+  let ts1 := LamportTs.new 1 r1
+  let ts2 := LamportTs.new 2 r1
+  let set := LWWElementSet.empty
+    |> fun s => LWWElementSet.apply s (LWWElementSet.add 42 ts1)
+    |> fun s => LWWElementSet.apply s (LWWElementSet.remove 42 ts2)
+  (set.contains 42) ≡ false
+
+test "LWWElementSet later timestamp wins (add after remove)" := do
+  let r1 : ReplicaId := 1
+  let ts1 := LamportTs.new 1 r1
+  let ts2 := LamportTs.new 2 r1
+  -- Remove at ts1, then add at ts2 (later) - add wins
+  let set := LWWElementSet.empty
+    |> fun s => LWWElementSet.apply s (LWWElementSet.remove 42 ts1)
+    |> fun s => LWWElementSet.apply s (LWWElementSet.add 42 ts2)
+  (set.contains 42) ≡ true
+
+test "LWWElementSet later timestamp wins (remove after add)" := do
+  let r1 : ReplicaId := 1
+  let ts1 := LamportTs.new 1 r1
+  let ts2 := LamportTs.new 2 r1
+  -- Add at ts1, then remove at ts2 (later) - remove wins
+  let set := LWWElementSet.empty
+    |> fun s => LWWElementSet.apply s (LWWElementSet.add 42 ts1)
+    |> fun s => LWWElementSet.apply s (LWWElementSet.remove 42 ts2)
+  (set.contains 42) ≡ false
+
+test "LWWElementSet equal timestamps add-wins" := do
+  let r1 : ReplicaId := 1
+  let ts := LamportTs.new 1 r1
+  -- Remove at ts, then add at same ts - add wins (bias)
+  let set := LWWElementSet.empty
+    |> fun s => LWWElementSet.apply s (LWWElementSet.remove 42 ts)
+    |> fun s => LWWElementSet.apply s (LWWElementSet.add 42 ts)
+  (set.contains 42) ≡ true
+
+test "LWWElementSet can re-add after remove" := do
+  let r1 : ReplicaId := 1
+  let ts1 := LamportTs.new 1 r1
+  let ts2 := LamportTs.new 2 r1
+  let ts3 := LamportTs.new 3 r1
+  let set := LWWElementSet.empty
+    |> fun s => LWWElementSet.apply s (LWWElementSet.add 42 ts1)
+    |> fun s => LWWElementSet.apply s (LWWElementSet.remove 42 ts2)
+    |> fun s => LWWElementSet.apply s (LWWElementSet.add 42 ts3)
+  (set.contains 42) ≡ true
+
+test "LWWElementSet multiple elements" := do
+  let r1 : ReplicaId := 1
+  let ts1 := LamportTs.new 1 r1
+  let ts2 := LamportTs.new 2 r1
+  let ts3 := LamportTs.new 3 r1
+  let set := LWWElementSet.empty
+    |> fun s => LWWElementSet.apply s (LWWElementSet.add 1 ts1)
+    |> fun s => LWWElementSet.apply s (LWWElementSet.add 2 ts2)
+    |> fun s => LWWElementSet.apply s (LWWElementSet.add 3 ts3)
+  (set.contains 1) ≡ true
+  (set.contains 2) ≡ true
+  (set.contains 3) ≡ true
+  (set.size) ≡ 3
+
+test "LWWElementSet merge combines entries" := do
+  let r1 : ReplicaId := 1
+  let r2 : ReplicaId := 2
+  let ts1 := LamportTs.new 1 r1
+  let ts2 := LamportTs.new 1 r2
+  let setA := LWWElementSet.apply LWWElementSet.empty (LWWElementSet.add 1 ts1)
+  let setB := LWWElementSet.apply LWWElementSet.empty (LWWElementSet.add 2 ts2)
+  let merged := LWWElementSet.merge setA setB
+  (merged.contains 1) ≡ true
+  (merged.contains 2) ≡ true
+
+test "LWWElementSet merge takes higher timestamp" := do
+  let r1 : ReplicaId := 1
+  let r2 : ReplicaId := 2
+  let ts1 := LamportTs.new 1 r1
+  let ts2 := LamportTs.new 2 r2
+  -- setA has element added at ts1
+  -- setB has element removed at ts2 (later)
+  let setA := LWWElementSet.apply LWWElementSet.empty (LWWElementSet.add 42 ts1)
+  let setB := LWWElementSet.apply LWWElementSet.empty (LWWElementSet.remove 42 ts2)
+  let merged := LWWElementSet.merge setA setB
+  (merged.contains 42) ≡ false  -- ts2 > ts1, so remove wins
+
 #generate_tests
 
 end ConvergentTests.SetTests

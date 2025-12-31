@@ -22,6 +22,7 @@
   - `GSet` - Grow-only set
   - `TwoPSet` - Two-phase set (add/remove, no re-add)
   - `ORSet` - Observed-remove set (supports re-add)
+  - `LWWElementSet` - Last-writer-wins element set (per-element timestamps)
 
   ### Maps
   - `LWWMap` - Last-writer-wins map
@@ -73,6 +74,7 @@ import Convergent.Register.MVRegister
 import Convergent.Set.GSet
 import Convergent.Set.TwoPSet
 import Convergent.Set.ORSet
+import Convergent.Set.LWWElementSet
 
 -- Maps
 import Convergent.Map.LWWMap

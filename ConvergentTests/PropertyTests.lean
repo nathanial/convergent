@@ -84,6 +84,13 @@ def ewflagEq (a b : EWFlag) : Bool :=
 def dwflagEq (a b : DWFlag) : Bool :=
   gsetEq a.enabled b.enabled && gsetEq a.disabled b.disabled
 
+/-- Compare LWWElementSets by contained elements -/
+def lwwElementSetEq [BEq α] [Hashable α] (a b : LWWElementSet α) : Bool :=
+  let aList := a.toList
+  let bList := b.toList
+  aList.length == bList.length &&
+  aList.all fun e => b.contains e
+
 /-! ## Random Generators -/
 
 /-- Generate a small Nat in range [0, n] -/
@@ -139,6 +146,11 @@ instance : Repr DWFlagOp where
   reprPrec op _ := match op with
     | .enable r => s!"DWFlagOp.enable({repr r})"
     | .disable r => s!"DWFlagOp.disable({repr r})"
+
+instance [Repr α] : Repr (LWWElementSetOp α) where
+  reprPrec op _ := match op with
+    | .add v ts => s!"LWWElementSetOp.add({repr v}, {repr ts})"
+    | .remove v ts => s!"LWWElementSetOp.remove({repr v}, {repr ts})"
 
 /-! ## Shrinkable Instances -/
 
@@ -224,6 +236,12 @@ instance : Shrinkable DWFlag where
   shrink _ := [DWFlag.empty]
 
 instance : Shrinkable DWFlagOp where
+  shrink _ := []
+
+instance [BEq α] [Hashable α] : Shrinkable (LWWElementSet α) where
+  shrink _ := [LWWElementSet.empty]
+
+instance : Shrinkable (LWWElementSetOp α) where
   shrink _ := []
 
 /-! ## Arbitrary Instances for Core Types -/
@@ -478,6 +496,27 @@ instance : Arbitrary DWFlagOp where
     let isEnable ← genSmallNat 1
     return if isEnable == 0 then .enable replica else .disable replica
 
+/-! ## Arbitrary Instances for LWWElementSet -/
+
+instance : Arbitrary (LWWElementSet Nat) where
+  arbitrary := do
+    let numOps ← genSmallNat 4
+    let mut set := LWWElementSet.empty
+    for i in [0:numOps] do
+      let v ← genSmallNat 10
+      let ts ← Arbitrary.arbitrary
+      let isAdd ← genSmallNat 1
+      let op := if isAdd == 0 then LWWElementSet.add v ts else LWWElementSet.remove v ts
+      set := LWWElementSet.apply set op
+    return set
+
+instance : Arbitrary (LWWElementSetOp Nat) where
+  arbitrary := do
+    let value ← genSmallNat 10
+    let ts ← Arbitrary.arbitrary
+    let isAdd ← genSmallNat 1
+    return if isAdd == 0 then .add value ts else .remove value ts
+
 /-! ## Property Tests: Merge Laws -/
 
 -- GCounter Merge Laws
@@ -564,6 +603,13 @@ instance : Arbitrary DWFlagOp where
            (DWFlag.merge a (DWFlag.merge b c))
 #test ∀ (a : DWFlag), dwflagEq (DWFlag.merge a a) a
 
+-- LWWElementSet Merge Laws
+#test ∀ (a b : LWWElementSet Nat), lwwElementSetEq (LWWElementSet.merge a b) (LWWElementSet.merge b a)
+#test ∀ (a b c : LWWElementSet Nat),
+  lwwElementSetEq (LWWElementSet.merge (LWWElementSet.merge a b) c)
+                  (LWWElementSet.merge a (LWWElementSet.merge b c))
+#test ∀ (a : LWWElementSet Nat), lwwElementSetEq (LWWElementSet.merge a a) a
+
 /-! ## Property Tests: Apply Commutativity -/
 
 -- GCounter apply commutes
@@ -625,6 +671,11 @@ instance : Arbitrary DWFlagOp where
 #test ∀ (s : DWFlag) (op1 op2 : DWFlagOp),
   dwflagEq (DWFlag.apply (DWFlag.apply s op1) op2)
            (DWFlag.apply (DWFlag.apply s op2) op1)
+
+-- LWWElementSet apply commutes
+#test ∀ (s : LWWElementSet Nat) (op1 op2 : LWWElementSetOp Nat),
+  lwwElementSetEq (LWWElementSet.apply (LWWElementSet.apply s op1) op2)
+                  (LWWElementSet.apply (LWWElementSet.apply s op2) op1)
 
 /-! ## Property Tests: Apply Idempotency -/
 
@@ -714,6 +765,16 @@ instance : Arbitrary DWFlagOp where
 #test ∀ (f : DWFlag) (r : ReplicaId),
   let f' := DWFlag.apply f (DWFlag.disable r)
   dwflagEq (DWFlag.apply f' (DWFlag.disable r)) f'
+
+-- LWWElementSet add is idempotent
+#test ∀ (s : LWWElementSet Nat) (v : Nat) (ts : LamportTs),
+  let s' := LWWElementSet.apply s (LWWElementSet.add v ts)
+  lwwElementSetEq (LWWElementSet.apply s' (LWWElementSet.add v ts)) s'
+
+-- LWWElementSet remove is idempotent
+#test ∀ (s : LWWElementSet Nat) (v : Nat) (ts : LamportTs),
+  let s' := LWWElementSet.apply s (LWWElementSet.remove v ts)
+  lwwElementSetEq (LWWElementSet.apply s' (LWWElementSet.remove v ts)) s'
 
 /-! ## Property Tests: Type-Specific Properties -/
 
@@ -890,6 +951,40 @@ instance : Arbitrary DWFlagOp where
     |> fun s => DWFlag.apply s (DWFlag.disable r2)
   f.value == false
 
+-- LWWElementSet: later timestamp wins (add with higher ts)
+#test ∀ (v : Nat) (r1 r2 : ReplicaId),
+  let ts1 : LamportTs := { time := 1, replica := r1 }
+  let ts2 : LamportTs := { time := 2, replica := r2 }
+  let set := LWWElementSet.empty
+    |> fun s => LWWElementSet.apply s (LWWElementSet.remove v ts1)
+    |> fun s => LWWElementSet.apply s (LWWElementSet.add v ts2)
+  set.contains v
+
+-- LWWElementSet: later timestamp wins (remove with higher ts)
+#test ∀ (v : Nat) (r1 r2 : ReplicaId),
+  let ts1 : LamportTs := { time := 1, replica := r1 }
+  let ts2 : LamportTs := { time := 2, replica := r2 }
+  let set := LWWElementSet.empty
+    |> fun s => LWWElementSet.apply s (LWWElementSet.add v ts1)
+    |> fun s => LWWElementSet.apply s (LWWElementSet.remove v ts2)
+  !set.contains v
+
+-- LWWElementSet: can re-add after remove (with newer timestamp)
+#test ∀ (v : Nat) (r : ReplicaId),
+  let ts1 : LamportTs := { time := 1, replica := r }
+  let ts2 : LamportTs := { time := 2, replica := r }
+  let ts3 : LamportTs := { time := 3, replica := r }
+  let set := LWWElementSet.empty
+    |> fun s => LWWElementSet.apply s (LWWElementSet.add v ts1)
+    |> fun s => LWWElementSet.apply s (LWWElementSet.remove v ts2)
+    |> fun s => LWWElementSet.apply s (LWWElementSet.add v ts3)
+  set.contains v
+
+-- LWWElementSet: add contains element
+#test ∀ (v : Nat) (ts : LamportTs),
+  let set := LWWElementSet.apply LWWElementSet.empty (LWWElementSet.add v ts)
+  set.contains v
+
 /-! ## Property Tests: Monotonicity -/
 
 -- GSet elements are never removed (add element, apply another op, element still there)
@@ -985,5 +1080,11 @@ instance : Arbitrary DWFlagOp where
   let forward := DWFlag.apply (DWFlag.apply (DWFlag.apply f op1) op2) op3
   let reverse := DWFlag.apply (DWFlag.apply (DWFlag.apply f op3) op2) op1
   dwflagEq forward reverse
+
+-- LWWElementSet convergence (3 ops)
+#test ∀ (s : LWWElementSet Nat) (op1 op2 op3 : LWWElementSetOp Nat),
+  let forward := LWWElementSet.apply (LWWElementSet.apply (LWWElementSet.apply s op1) op2) op3
+  let reverse := LWWElementSet.apply (LWWElementSet.apply (LWWElementSet.apply s op3) op2) op1
+  lwwElementSetEq forward reverse
 
 end ConvergentTests.PropertyTests
