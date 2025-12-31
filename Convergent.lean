@@ -27,6 +27,7 @@
   ### Maps
   - `LWWMap` - Last-writer-wins map
   - `ORMap` - Observed-remove map (add-wins, supports re-add)
+  - `PNMap` - Map with PNCounter values (per-key increment/decrement)
 
   ### Sequences
   - `RGA` - Replicated Growable Array (for lists/text)
@@ -79,6 +80,7 @@ import Convergent.Set.LWWElementSet
 -- Maps
 import Convergent.Map.LWWMap
 import Convergent.Map.ORMap
+import Convergent.Map.PNMap
 
 -- Sequences
 import Convergent.Sequence.RGA

@@ -31,7 +31,7 @@
 |------|:------:|-------------|
 | LWWMap | ✓ | Last-writer-wins map |
 | ORMap | ✓ | Observed-remove map (add-wins, supports re-add) |
-| PNMap | ✗ | Map with PNCounter values |
+| PNMap | ✓ | Map with PNCounter values |
 
 ### Sequences
 
@@ -61,22 +61,22 @@
 
 ### Core CRDT Laws
 
-| Property | GCounter | PNCounter | LWWReg | MVReg | GSet | TwoPSet | ORSet | LWWElemSet | LWWMap | ORMap | RGA | EWFlag | DWFlag |
-|----------|:--------:|:---------:|:------:|:-----:|:----:|:-------:|:-----:|:----------:|:------:|:-----:|:---:|:------:|:------:|
-| Merge commutativity | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Merge associativity | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Merge idempotency | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Apply commutativity | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Apply idempotency | n/a | n/a | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Property | GCounter | PNCounter | LWWReg | MVReg | GSet | TwoPSet | ORSet | LWWElemSet | LWWMap | ORMap | PNMap | RGA | EWFlag | DWFlag |
+|----------|:--------:|:---------:|:------:|:-----:|:----:|:-------:|:-----:|:----------:|:------:|:-----:|:-----:|:---:|:------:|:------:|
+| Merge commutativity | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Merge associativity | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Merge idempotency | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Apply commutativity | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Apply idempotency | n/a | n/a | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | n/a | ✓ | ✓ | ✓ |
 
 Legend: ✓ = tested and passing, ✗ = not yet tested, n/a = not applicable
 
 ### Convergence
 
-| Property | GCounter | PNCounter | LWWReg | MVReg | GSet | TwoPSet | ORSet | LWWElemSet | LWWMap | ORMap | RGA | EWFlag | DWFlag |
-|----------|:--------:|:---------:|:------:|:-----:|:----:|:-------:|:-----:|:----------:|:------:|:-----:|:---:|:------:|:------:|
-| 2-op convergence | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| 3-op convergence | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Property | GCounter | PNCounter | LWWReg | MVReg | GSet | TwoPSet | ORSet | LWWElemSet | LWWMap | ORMap | PNMap | RGA | EWFlag | DWFlag |
+|----------|:--------:|:---------:|:------:|:-----:|:----:|:-------:|:-----:|:----------:|:------:|:-----:|:-----:|:---:|:------:|:------:|
+| 2-op convergence | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| 3-op convergence | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 
 Note: 2-op convergence covered by apply commutativity. 3-op tests forward vs reverse ordering.
 
@@ -110,18 +110,20 @@ Note: 2-op convergence covered by apply commutativity. 3-op tests forward vs rev
 | Later timestamp wins per element | LWWElementSet | ✓ |
 | Can re-add after remove | LWWElementSet | ✓ |
 | Add contains element | LWWElementSet | ✓ |
+| Increment adds exactly 1 | PNMap | ✓ |
+| Decrement subtracts exactly 1 | PNMap | ✓ |
 
 ---
 
 ## Test Summary
 
-**Total Property Tests: 119**
+**Total Property Tests: 128**
 
-- Core CRDT laws: 39 tests (merge laws) + 13 tests (apply commutativity) + 17 tests (apply idempotency)
-- Convergence: 13 tests (3-op)
+- Core CRDT laws: 42 tests (merge laws) + 14 tests (apply commutativity) + 17 tests (apply idempotency)
+- Convergence: 14 tests (3-op)
 - Monotonicity: 4 tests
-- Type-specific: 19 tests (includes EWFlag/DWFlag/LWWElementSet semantics)
-- Additional semantics: 14 tests
+- Type-specific: 21 tests (includes EWFlag/DWFlag/LWWElementSet/PNMap semantics)
+- Additional semantics: 16 tests
 
 ---
 
@@ -159,6 +161,6 @@ lake build && lake test
 - `ConvergentTests/CounterTests.lean` - GCounter, PNCounter unit tests
 - `ConvergentTests/RegisterTests.lean` - LWWRegister, MVRegister unit tests
 - `ConvergentTests/SetTests.lean` - GSet, TwoPSet, ORSet, LWWElementSet unit tests
-- `ConvergentTests/MapTests.lean` - LWWMap, ORMap unit tests
+- `ConvergentTests/MapTests.lean` - LWWMap, ORMap, PNMap unit tests
 - `ConvergentTests/SequenceTests.lean` - RGA unit tests
 - `ConvergentTests/FlagTests.lean` - EWFlag, DWFlag unit tests

@@ -91,6 +91,13 @@ def lwwElementSetEq [BEq α] [Hashable α] (a b : LWWElementSet α) : Bool :=
   aList.length == bList.length &&
   aList.all fun e => b.contains e
 
+/-- Compare PNMaps by key-value pairs -/
+def pnmapEq [BEq κ] [Hashable κ] (a b : PNMap κ) : Bool :=
+  let aList := a.toList
+  let bList := b.toList
+  aList.length == bList.length &&
+  aList.all fun (k, v) => b.get k == v
+
 /-! ## Random Generators -/
 
 /-- Generate a small Nat in range [0, n] -/
@@ -151,6 +158,11 @@ instance [Repr α] : Repr (LWWElementSetOp α) where
   reprPrec op _ := match op with
     | .add v ts => s!"LWWElementSetOp.add({repr v}, {repr ts})"
     | .remove v ts => s!"LWWElementSetOp.remove({repr v}, {repr ts})"
+
+instance [Repr κ] : Repr (PNMapOp κ) where
+  reprPrec op _ := match op with
+    | .increment k r => s!"PNMapOp.increment({repr k}, {repr r})"
+    | .decrement k r => s!"PNMapOp.decrement({repr k}, {repr r})"
 
 /-! ## Shrinkable Instances -/
 
@@ -242,6 +254,12 @@ instance [BEq α] [Hashable α] : Shrinkable (LWWElementSet α) where
   shrink _ := [LWWElementSet.empty]
 
 instance : Shrinkable (LWWElementSetOp α) where
+  shrink _ := []
+
+instance [BEq κ] [Hashable κ] : Shrinkable (PNMap κ) where
+  shrink _ := [PNMap.empty]
+
+instance : Shrinkable (PNMapOp κ) where
   shrink _ := []
 
 /-! ## Arbitrary Instances for Core Types -/
@@ -517,6 +535,27 @@ instance : Arbitrary (LWWElementSetOp Nat) where
     let isAdd ← genSmallNat 1
     return if isAdd == 0 then .add value ts else .remove value ts
 
+/-! ## Arbitrary Instances for PNMap -/
+
+instance : Arbitrary (PNMap Nat) where
+  arbitrary := do
+    let numOps ← genSmallNat 4
+    let mut m := PNMap.empty
+    for _ in [0:numOps] do
+      let k ← genSmallNat 5
+      let replica ← Arbitrary.arbitrary
+      let isInc ← genSmallNat 1
+      let op := if isInc == 0 then PNMap.increment k replica else PNMap.decrement k replica
+      m := PNMap.apply m op
+    return m
+
+instance : Arbitrary (PNMapOp Nat) where
+  arbitrary := do
+    let key ← genSmallNat 5
+    let replica ← Arbitrary.arbitrary
+    let isInc ← genSmallNat 1
+    return if isInc == 0 then .increment key replica else .decrement key replica
+
 /-! ## Property Tests: Merge Laws -/
 
 -- GCounter Merge Laws
@@ -610,6 +649,13 @@ instance : Arbitrary (LWWElementSetOp Nat) where
                   (LWWElementSet.merge a (LWWElementSet.merge b c))
 #test ∀ (a : LWWElementSet Nat), lwwElementSetEq (LWWElementSet.merge a a) a
 
+-- PNMap Merge Laws
+#test ∀ (a b : PNMap Nat), pnmapEq (PNMap.merge a b) (PNMap.merge b a)
+#test ∀ (a b c : PNMap Nat),
+  pnmapEq (PNMap.merge (PNMap.merge a b) c)
+          (PNMap.merge a (PNMap.merge b c))
+#test ∀ (a : PNMap Nat), pnmapEq (PNMap.merge a a) a
+
 /-! ## Property Tests: Apply Commutativity -/
 
 -- GCounter apply commutes
@@ -676,6 +722,11 @@ instance : Arbitrary (LWWElementSetOp Nat) where
 #test ∀ (s : LWWElementSet Nat) (op1 op2 : LWWElementSetOp Nat),
   lwwElementSetEq (LWWElementSet.apply (LWWElementSet.apply s op1) op2)
                   (LWWElementSet.apply (LWWElementSet.apply s op2) op1)
+
+-- PNMap apply commutes
+#test ∀ (s : PNMap Nat) (op1 op2 : PNMapOp Nat),
+  pnmapEq (PNMap.apply (PNMap.apply s op1) op2)
+          (PNMap.apply (PNMap.apply s op2) op1)
 
 /-! ## Property Tests: Apply Idempotency -/
 
@@ -985,6 +1036,16 @@ instance : Arbitrary (LWWElementSetOp Nat) where
   let set := LWWElementSet.apply LWWElementSet.empty (LWWElementSet.add v ts)
   set.contains v
 
+-- PNMap: increment adds exactly 1
+#test ∀ (m : PNMap Nat) (k : Nat) (r : ReplicaId),
+  let m' := PNMap.apply m (PNMap.increment k r)
+  m'.get k == m.get k + 1
+
+-- PNMap: decrement subtracts exactly 1
+#test ∀ (m : PNMap Nat) (k : Nat) (r : ReplicaId),
+  let m' := PNMap.apply m (PNMap.decrement k r)
+  m'.get k == m.get k - 1
+
 /-! ## Property Tests: Monotonicity -/
 
 -- GSet elements are never removed (add element, apply another op, element still there)
@@ -1086,5 +1147,11 @@ instance : Arbitrary (LWWElementSetOp Nat) where
   let forward := LWWElementSet.apply (LWWElementSet.apply (LWWElementSet.apply s op1) op2) op3
   let reverse := LWWElementSet.apply (LWWElementSet.apply (LWWElementSet.apply s op3) op2) op1
   lwwElementSetEq forward reverse
+
+-- PNMap convergence (3 ops)
+#test ∀ (m : PNMap Nat) (op1 op2 op3 : PNMapOp Nat),
+  let forward := PNMap.apply (PNMap.apply (PNMap.apply m op1) op2) op3
+  let reverse := PNMap.apply (PNMap.apply (PNMap.apply m op3) op2) op1
+  pnmapEq forward reverse
 
 end ConvergentTests.PropertyTests

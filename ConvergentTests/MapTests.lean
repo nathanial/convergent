@@ -243,6 +243,85 @@ test "ORMap deeply nested - multiple users" := do
     (bob.getOne "score" |>.map (·.value)) ≡ some 1
   | _, _ => pure ()
 
+testSuite "PNMap"
+
+test "PNMap empty returns 0" := do
+  let m : PNMap String := PNMap.empty
+  (m.get "key") ≡ 0
+
+test "PNMap increment increases by 1" := do
+  let r1 : ReplicaId := 1
+  let m := PNMap.apply PNMap.empty (PNMap.increment "key" r1)
+  (m.get "key") ≡ 1
+
+test "PNMap decrement decreases by 1" := do
+  let r1 : ReplicaId := 1
+  let m := PNMap.empty
+    |> fun s => PNMap.apply s (PNMap.increment "key" r1)
+    |> fun s => PNMap.apply s (PNMap.increment "key" r1)
+    |> fun s => PNMap.apply s (PNMap.decrement "key" r1)
+  (m.get "key") ≡ 1
+
+test "PNMap multiple increments" := do
+  let r1 : ReplicaId := 1
+  let m := PNMap.empty
+    |> fun s => PNMap.apply s (PNMap.increment "key" r1)
+    |> fun s => PNMap.apply s (PNMap.increment "key" r1)
+    |> fun s => PNMap.apply s (PNMap.increment "key" r1)
+  (m.get "key") ≡ 3
+
+test "PNMap multiple keys" := do
+  let r1 : ReplicaId := 1
+  let m := PNMap.empty
+    |> fun s => PNMap.apply s (PNMap.increment "a" r1)
+    |> fun s => PNMap.apply s (PNMap.increment "b" r1)
+    |> fun s => PNMap.apply s (PNMap.increment "b" r1)
+    |> fun s => PNMap.apply s (PNMap.increment "c" r1)
+    |> fun s => PNMap.apply s (PNMap.increment "c" r1)
+    |> fun s => PNMap.apply s (PNMap.increment "c" r1)
+  (m.get "a") ≡ 1
+  (m.get "b") ≡ 2
+  (m.get "c") ≡ 3
+
+test "PNMap value can go negative" := do
+  let r1 : ReplicaId := 1
+  let m := PNMap.apply PNMap.empty (PNMap.decrement "key" r1)
+  (m.get "key") ≡ -1
+
+test "PNMap multiple replicas" := do
+  let r1 : ReplicaId := 1
+  let r2 : ReplicaId := 2
+  let m := PNMap.empty
+    |> fun s => PNMap.apply s (PNMap.increment "key" r1)
+    |> fun s => PNMap.apply s (PNMap.increment "key" r2)
+    |> fun s => PNMap.apply s (PNMap.increment "key" r1)
+  (m.get "key") ≡ 3
+
+test "PNMap merge combines counters" := do
+  let r1 : ReplicaId := 1
+  let r2 : ReplicaId := 2
+  -- Map A: key has value 2 from r1
+  let mA := PNMap.empty
+    |> fun s => PNMap.apply s (PNMap.increment "key" r1)
+    |> fun s => PNMap.apply s (PNMap.increment "key" r1)
+  -- Map B: key has value 3 from r2
+  let mB := PNMap.empty
+    |> fun s => PNMap.apply s (PNMap.increment "key" r2)
+    |> fun s => PNMap.apply s (PNMap.increment "key" r2)
+    |> fun s => PNMap.apply s (PNMap.increment "key" r2)
+  -- Merge should get 2 + 3 = 5
+  let merged := PNMap.merge mA mB
+  (merged.get "key") ≡ 5
+
+test "PNMap merge different keys" := do
+  let r1 : ReplicaId := 1
+  let r2 : ReplicaId := 2
+  let mA := PNMap.apply PNMap.empty (PNMap.increment "a" r1)
+  let mB := PNMap.apply PNMap.empty (PNMap.increment "b" r2)
+  let merged := PNMap.merge mA mB
+  (merged.get "a") ≡ 1
+  (merged.get "b") ≡ 1
+
 #generate_tests
 
 end ConvergentTests.MapTests
