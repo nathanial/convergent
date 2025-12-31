@@ -65,6 +65,17 @@ def lwwMapEq [BEq κ] [Hashable κ] [BEq α] (a b : LWWMap κ α) : Bool :=
 def rgaEq [BEq α] (a b : RGA α) : Bool :=
   a.toList == b.toList
 
+/-- Compare ORMaps by keys and tags (order-independent) -/
+def ormapEq [BEq κ] [Hashable κ] (a b : ORMap κ α) : Bool :=
+  let aKeys := a.keys
+  let bKeys := b.keys
+  aKeys.length == bKeys.length &&
+  aKeys.all fun k =>
+    let aTags := a.getTags k
+    let bTags := b.getTags k
+    aTags.length == bTags.length &&
+    aTags.all fun t => bTags.any (· == t)
+
 /-! ## Random Generators -/
 
 /-- Generate a small Nat in range [0, n] -/
@@ -104,6 +115,11 @@ instance [Repr α] : Repr (RGAOp α) where
   reprPrec op _ := match op with
     | .insert aid v id => s!"RGAOp.insert({repr aid}, {repr v}, {repr id})"
     | .delete id => s!"RGAOp.delete({repr id})"
+
+instance [Repr κ] [Repr α] : Repr (ORMapOp κ α) where
+  reprPrec op _ := match op with
+    | .put k v tag => s!"ORMapOp.put({repr k}, {repr v}, {repr tag})"
+    | .delete k tags => s!"ORMapOp.delete({repr k}, {repr tags})"
 
 /-! ## Shrinkable Instances -/
 
@@ -171,6 +187,12 @@ instance : Shrinkable (RGA α) where
   shrink _ := [RGA.empty]
 
 instance : Shrinkable (RGAOp α) where
+  shrink _ := []
+
+instance [BEq κ] [Hashable κ] : Shrinkable (ORMap κ α) where
+  shrink _ := [ORMap.empty]
+
+instance : Shrinkable (ORMapOp κ α) where
   shrink _ := []
 
 /-! ## Arbitrary Instances for Core Types -/
@@ -341,6 +363,27 @@ instance : Arbitrary (LWWMapOp Nat Nat) where
     let isPut ← genSmallNat 2
     return if isPut < 2 then .put key value ts else .delete key ts
 
+instance : Arbitrary (ORMap Nat Nat) where
+  arbitrary := do
+    let numOps ← genSmallNat 4
+    let mut m := ORMap.empty
+    let mut seq := 0
+    for _ in [0:numOps] do
+      let k ← genSmallNat 5
+      let v ← genSmallNat 100
+      let replica ← Arbitrary.arbitrary
+      let tag := UniqueId.new replica seq
+      seq := seq + 1
+      m := ORMap.apply m (ORMap.put k v tag)
+    return m
+
+instance : Arbitrary (ORMapOp Nat Nat) where
+  arbitrary := do
+    let k ← genSmallNat 5
+    let v ← genSmallNat 100
+    let tag ← Arbitrary.arbitrary
+    return .put k v tag
+
 /-! ## Arbitrary Instances for Sequence Type -/
 
 instance : Arbitrary (RGA Nat) where
@@ -433,6 +476,13 @@ instance : Arbitrary (RGAOp Nat) where
         (RGA.merge a (RGA.merge b c))
 #test ∀ (a : RGA Nat), rgaEq (RGA.merge a a) a
 
+-- ORMap Merge Laws
+#test ∀ (a b : ORMap Nat Nat), ormapEq (ORMap.merge a b) (ORMap.merge b a)
+#test ∀ (a b c : ORMap Nat Nat),
+  ormapEq (ORMap.merge (ORMap.merge a b) c)
+          (ORMap.merge a (ORMap.merge b c))
+#test ∀ (a : ORMap Nat Nat), ormapEq (ORMap.merge a a) a
+
 /-! ## Property Tests: Apply Commutativity -/
 
 -- GCounter apply commutes
@@ -479,6 +529,11 @@ instance : Arbitrary (RGAOp Nat) where
 #test ∀ (s : RGA Nat) (op1 op2 : RGAOp Nat),
   rgaEq (RGA.apply (RGA.apply s op1) op2)
         (RGA.apply (RGA.apply s op2) op1)
+
+-- ORMap apply commutes
+#test ∀ (s : ORMap Nat Nat) (op1 op2 : ORMapOp Nat Nat),
+  ormapEq (ORMap.apply (ORMap.apply s op1) op2)
+          (ORMap.apply (ORMap.apply s op2) op1)
 
 /-! ## Property Tests: Apply Idempotency -/
 
@@ -537,6 +592,17 @@ instance : Arbitrary (RGAOp Nat) where
 #test ∀ (rga : RGA Nat) (id : UniqueId),
   let rga' := RGA.apply rga (RGA.delete id)
   rgaEq (RGA.apply rga' (RGA.delete id)) rga'
+
+-- ORMap put is idempotent
+#test ∀ (m : ORMap Nat Nat) (k v : Nat) (tag : UniqueId),
+  let m' := ORMap.apply m (ORMap.put k v tag)
+  ormapEq (ORMap.apply m' (ORMap.put k v tag)) m'
+
+-- ORMap delete is idempotent
+#test ∀ (m : ORMap Nat Nat) (k : Nat),
+  let op := ORMap.delete m k
+  let m' := ORMap.apply m op
+  ormapEq (ORMap.apply m' op) m'
 
 /-! ## Property Tests: Type-Specific Properties -/
 
@@ -662,6 +728,27 @@ instance : Arbitrary (RGAOp Nat) where
   -- Lower ID (r1) comes first due to ID-based ordering
   rga'.toList == [v1, v2]
 
+-- ORMap: contains key after put
+#test ∀ (k v : Nat) (tag : UniqueId),
+  let m := ORMap.apply ORMap.empty (ORMap.put k v tag)
+  m.contains k
+
+-- ORMap: get returns value after put
+#test ∀ (k v : Nat) (tag : UniqueId),
+  let m := ORMap.apply ORMap.empty (ORMap.put k v tag)
+  m.get k == [v]
+
+-- ORMap: can re-add after delete (with new tag)
+#test ∀ (k v : Nat),
+  let r : ReplicaId := { id := 1 }
+  let tag1 := UniqueId.new r 1
+  let tag2 := UniqueId.new r 2
+  let m := ORMap.apply ORMap.empty (ORMap.put k v tag1)
+  let deleteOp := ORMap.delete m k
+  let m' := ORMap.apply m deleteOp
+  let m'' := ORMap.apply m' (ORMap.put k v tag2)
+  m''.contains k
+
 /-! ## Property Tests: Monotonicity -/
 
 -- GSet elements are never removed (add element, apply another op, element still there)
@@ -739,5 +826,11 @@ instance : Arbitrary (RGAOp Nat) where
   let forward := RGA.apply (RGA.apply (RGA.apply rga op1) op2) op3
   let reverse := RGA.apply (RGA.apply (RGA.apply rga op3) op2) op1
   rgaEq forward reverse
+
+-- ORMap convergence (3 ops)
+#test ∀ (m : ORMap Nat Nat) (op1 op2 op3 : ORMapOp Nat Nat),
+  let forward := ORMap.apply (ORMap.apply (ORMap.apply m op1) op2) op3
+  let reverse := ORMap.apply (ORMap.apply (ORMap.apply m op3) op2) op1
+  ormapEq forward reverse
 
 end ConvergentTests.PropertyTests

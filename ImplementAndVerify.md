@@ -31,7 +31,7 @@
 | CRDT | Status | Description |
 |------|:------:|-------------|
 | LWWMap | ✓ | Last-writer-wins map |
-| ORMap | ✗ | Observed-remove map (nested CRDT composition) |
+| ORMap | ✓ | Observed-remove map (add-wins, supports re-add) |
 | PNMap | ✗ | Map with PNCounter values |
 
 ### Sequences
@@ -62,33 +62,33 @@
 
 ### Core CRDT Laws
 
-| Property | GCounter | PNCounter | LWWReg | MVReg | GSet | TwoPSet | ORSet | LWWMap | RGA |
-|----------|:--------:|:---------:|:------:|:-----:|:----:|:-------:|:-----:|:------:|:---:|
-| Merge commutativity | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Merge associativity | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Merge idempotency | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Apply commutativity | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Apply idempotency | n/a | n/a | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Property | GCounter | PNCounter | LWWReg | MVReg | GSet | TwoPSet | ORSet | LWWMap | ORMap | RGA |
+|----------|:--------:|:---------:|:------:|:-----:|:----:|:-------:|:-----:|:------:|:-----:|:---:|
+| Merge commutativity | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Merge associativity | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Merge idempotency | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Apply commutativity | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Apply idempotency | n/a | n/a | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 
 Legend: ✓ = tested and passing, ✗ = not yet tested, n/a = not applicable
 
 ### Convergence
 
-| Property | GCounter | PNCounter | LWWReg | MVReg | GSet | TwoPSet | ORSet | LWWMap | RGA |
-|----------|:--------:|:---------:|:------:|:-----:|:----:|:-------:|:-----:|:------:|:---:|
-| 2-op convergence | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| 3-op convergence | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Property | GCounter | PNCounter | LWWReg | MVReg | GSet | TwoPSet | ORSet | LWWMap | ORMap | RGA |
+|----------|:--------:|:---------:|:------:|:-----:|:----:|:-------:|:-----:|:------:|:-----:|:---:|
+| 2-op convergence | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| 3-op convergence | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 
 Note: 2-op convergence covered by apply commutativity. 3-op tests forward vs reverse ordering.
 
 ### Monotonicity
 
-| Property | GCounter | PNCounter | LWWReg | MVReg | GSet | TwoPSet | ORSet | LWWMap | RGA |
-|----------|:--------:|:---------:|:------:|:-----:|:----:|:-------:|:-----:|:------:|:---:|
-| Value never decreases | ✓ | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
-| Elements never removed | n/a | n/a | n/a | n/a | ✓ | n/a | n/a | n/a | n/a |
-| Added set never shrinks | n/a | n/a | n/a | n/a | n/a | ✓ | n/a | n/a | n/a |
-| Removed set never shrinks | n/a | n/a | n/a | n/a | n/a | ✓ | n/a | n/a | n/a |
+| Property | GCounter | PNCounter | LWWReg | MVReg | GSet | TwoPSet | ORSet | LWWMap | ORMap | RGA |
+|----------|:--------:|:---------:|:------:|:-----:|:----:|:-------:|:-----:|:------:|:-----:|:---:|
+| Value never decreases | ✓ | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
+| Elements never removed | n/a | n/a | n/a | n/a | ✓ | n/a | n/a | n/a | n/a | n/a |
+| Added set never shrinks | n/a | n/a | n/a | n/a | n/a | ✓ | n/a | n/a | n/a | n/a |
+| Removed set never shrinks | n/a | n/a | n/a | n/a | n/a | ✓ | n/a | n/a | n/a | n/a |
 
 ### Type-Specific Semantics
 
@@ -97,24 +97,26 @@ Note: 2-op convergence covered by apply commutativity. 3-op tests forward vs rev
 | Later timestamp wins | LWWReg, LWWMap | ✓ |
 | Dominated values removed | MVReg | ✓ |
 | Concurrent values preserved | MVReg | ✓ |
-| Re-add after remove works | ORSet | ✓ |
+| Re-add after remove works | ORSet, ORMap | ✓ |
 | Remove-then-add is add | ORSet | ✓ |
 | Removed cannot re-add | TwoPSet | ✓ |
 | Insert ordering preserved | RGA | ✓ |
 | Delete creates tombstone | RGA | ✓ |
 | Increment adds exactly 1 | GCounter | ✓ |
 | Inc/dec work correctly | PNCounter | ✓ |
+| Contains key after put | ORMap | ✓ |
+| Get returns value after put | ORMap | ✓ |
 
 ---
 
 ## Test Summary
 
-**Total Property Tests: 78**
+**Total Property Tests: 88**
 
-- Core CRDT laws: 27 tests (merge laws) + 9 tests (apply commutativity) + 11 tests (apply idempotency)
-- Convergence: 9 tests (3-op)
+- Core CRDT laws: 30 tests (merge laws) + 10 tests (apply commutativity) + 13 tests (apply idempotency)
+- Convergence: 10 tests (3-op)
 - Monotonicity: 4 tests
-- Type-specific: 10 tests
+- Type-specific: 13 tests
 - Additional semantics: 8 tests
 
 ---
@@ -133,11 +135,6 @@ When implementing new CRDTs, they should satisfy:
 - [ ] Apply idempotency
 - [ ] Enable-wins (EWFlag): concurrent enable + disable = enabled
 - [ ] Disable-wins (DWFlag): concurrent enable + disable = disabled
-
-### ORMap
-- [ ] Apply idempotency
-- [ ] Nested CRDT operations commute
-- [ ] Remove key then update = update (add-wins)
 
 ### BoundedCounter
 - [ ] Value stays within bounds
