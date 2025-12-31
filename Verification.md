@@ -10,21 +10,9 @@ Property-based tests using Plausible to verify CRDT laws.
 | Merge associativity | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Merge idempotency | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Apply commutativity | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Apply idempotency | n/a | n/a | ✗ | ✗ | ✓ | ✓ | ✗ | ✗ | ✗ |
+| Apply idempotency | n/a | n/a | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 
 Legend: ✓ = tested and passing, ✗ = not yet tested, n/a = not applicable
-
-## Missing Tests
-
-### Apply Idempotency
-
-The following CRDTs need apply idempotency tests (where applicable):
-
-- LWWRegister (set with same timestamp should be idempotent)
-- MVRegister (set with same clock should be idempotent)
-- ORSet (add with same tag should be idempotent)
-- LWWMap (put with same key/timestamp should be idempotent)
-- RGA (insert with same ID should be idempotent)
 
 ## Other Properties Not Yet Tested
 

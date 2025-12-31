@@ -497,6 +497,47 @@ instance : Arbitrary (RGAOp Nat) where
   let tps' := TwoPSet.apply tps (TwoPSet.remove v)
   twopsetEq (TwoPSet.apply tps' (TwoPSet.remove v)) tps'
 
+-- LWWRegister set is idempotent
+#test ∀ (reg : LWWRegister Nat) (op : LWWRegisterOp Nat),
+  let reg' := LWWRegister.apply reg op
+  lwwRegisterEq (LWWRegister.apply reg' op) reg'
+
+-- MVRegister set is idempotent
+#test ∀ (reg : MVRegister Nat) (op : MVRegisterOp Nat),
+  let reg' := MVRegister.apply reg op
+  mvRegisterEq (MVRegister.apply reg' op) reg'
+
+-- ORSet add is idempotent
+#test ∀ (os : ORSet Nat) (v : Nat) (tag : UniqueId),
+  let os' := ORSet.apply os (ORSet.add v tag)
+  orsetEq (ORSet.apply os' (ORSet.add v tag)) os'
+
+-- ORSet remove is idempotent
+#test ∀ (os : ORSet Nat) (v : Nat),
+  let op := ORSet.remove os v
+  let os' := ORSet.apply os op
+  orsetEq (ORSet.apply os' op) os'
+
+-- LWWMap put is idempotent
+#test ∀ (m : LWWMap Nat Nat) (k v : Nat) (ts : LamportTs),
+  let m' := LWWMap.apply m (LWWMap.put k v ts)
+  lwwMapEq (LWWMap.apply m' (LWWMap.put k v ts)) m'
+
+-- LWWMap delete is idempotent
+#test ∀ (m : LWWMap Nat Nat) (k : Nat) (ts : LamportTs),
+  let m' := LWWMap.apply m (LWWMap.delete k ts)
+  lwwMapEq (LWWMap.apply m' (LWWMap.delete k ts)) m'
+
+-- RGA insert is idempotent
+#test ∀ (rga : RGA Nat) (v : Nat) (id : UniqueId),
+  let rga' := RGA.apply rga (RGA.insert none v id)
+  rgaEq (RGA.apply rga' (RGA.insert none v id)) rga'
+
+-- RGA delete is idempotent
+#test ∀ (rga : RGA Nat) (id : UniqueId),
+  let rga' := RGA.apply rga (RGA.delete id)
+  rgaEq (RGA.apply rga' (RGA.delete id)) rga'
+
 /-! ## Property Tests: Type-Specific Properties -/
 
 -- GCounter value is monotonically non-decreasing
