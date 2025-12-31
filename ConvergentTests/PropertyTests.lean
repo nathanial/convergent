@@ -1,0 +1,517 @@
+/-
+  Property-based tests for Convergent CRDTs using Plausible.
+  These tests verify CRDT laws: commutativity, associativity, idempotency.
+-/
+
+import Convergent
+import Plausible
+
+namespace ConvergentTests.PropertyTests
+
+open Plausible
+open Convergent
+
+/-! ## Equality Helpers for HashMap-based types -/
+
+/-- Compare GCounters by value -/
+def gcounterEq (a b : GCounter) : Bool :=
+  a.value == b.value
+
+/-- Compare PNCounters by value -/
+def pncounterEq (a b : PNCounter) : Bool :=
+  a.value == b.value
+
+/-- Compare LWWRegisters -/
+def lwwRegisterEq [BEq α] (a b : LWWRegister α) : Bool :=
+  match a.value, b.value with
+  | none, none => true
+  | some (va, tsa), some (vb, tsb) => va == vb && tsa == tsb
+  | _, _ => false
+
+/-- Compare MVRegisters by values (order-independent) -/
+def mvRegisterEq [BEq α] (a b : MVRegister α) : Bool :=
+  let aVals := a.get
+  let bVals := b.get
+  aVals.length == bVals.length &&
+  aVals.all fun v => bVals.any (· == v)
+
+/-- Compare GSets by elements (order-independent) -/
+def gsetEq [BEq α] (a b : GSet α) : Bool :=
+  a.elements.length == b.elements.length &&
+  a.elements.all fun e => b.contains e
+
+/-- Compare TwoPSets by visible elements -/
+def twopsetEq [BEq α] (a b : TwoPSet α) : Bool :=
+  let aList := a.toList
+  let bList := b.toList
+  aList.length == bList.length &&
+  aList.all fun e => bList.any (· == e)
+
+/-- Compare ORSets by contained elements -/
+def orsetEq [BEq α] [Hashable α] (a b : ORSet α) : Bool :=
+  let aList := a.toList
+  let bList := b.toList
+  aList.length == bList.length &&
+  aList.all fun e => b.contains e
+
+/-- Compare LWWMaps by key-value pairs -/
+def lwwMapEq [BEq κ] [Hashable κ] [BEq α] (a b : LWWMap κ α) : Bool :=
+  let aList := a.toList
+  let bList := b.toList
+  aList.length == bList.length &&
+  aList.all fun (k, v) => b.get k == some v
+
+/-- Compare RGAs by visible content -/
+def rgaEq [BEq α] (a b : RGA α) : Bool :=
+  a.toList == b.toList
+
+/-! ## Random Generators -/
+
+/-- Generate a small Nat in range [0, n] -/
+def genSmallNat (n : Nat) : Gen Nat := do
+  let x ← Gen.choose Nat 0 n (by omega)
+  return x.val
+
+/-! ## Repr Instances for Operations -/
+
+instance : Repr GCounterOp where
+  reprPrec op _ := s!"GCounterOp({op.replica})"
+
+instance : Repr PNCounterOp where
+  reprPrec op _ := match op with
+    | .increment r => s!"PNCounterOp.increment({r})"
+    | .decrement r => s!"PNCounterOp.decrement({r})"
+
+instance [Repr α] : Repr (GSetOp α) where
+  reprPrec op _ := s!"GSetOp({repr op.value})"
+
+instance [Repr α] : Repr (TwoPSetOp α) where
+  reprPrec op _ := match op with
+    | .add v => s!"TwoPSetOp.add({repr v})"
+    | .remove v => s!"TwoPSetOp.remove({repr v})"
+
+instance [Repr α] : Repr (ORSetOp α) where
+  reprPrec op _ := match op with
+    | .add v t => s!"ORSetOp.add({repr v}, {repr t})"
+    | .remove v ts => s!"ORSetOp.remove({repr v}, {repr ts})"
+
+instance [Repr κ] [Repr α] : Repr (LWWMapOp κ α) where
+  reprPrec op _ := match op with
+    | .put k v ts => s!"LWWMapOp.put({repr k}, {repr v}, {repr ts})"
+    | .delete k ts => s!"LWWMapOp.delete({repr k}, {repr ts})"
+
+instance [Repr α] : Repr (RGAOp α) where
+  reprPrec op _ := match op with
+    | .insert aid v id => s!"RGAOp.insert({repr aid}, {repr v}, {repr id})"
+    | .delete id => s!"RGAOp.delete({repr id})"
+
+/-! ## Shrinkable Instances -/
+
+instance : Shrinkable ReplicaId where
+  shrink r := if r.id == 0 then [] else [{ id := 0 }]
+
+instance : Shrinkable LamportTs where
+  shrink ts := if ts.time == 0 then [] else [{ ts with time := 0 }]
+
+instance : Shrinkable VectorClock where
+  shrink _ := [VectorClock.empty]
+
+instance : Shrinkable UniqueId where
+  shrink uid := if uid.seq == 0 then [] else [{ uid with seq := 0 }]
+
+instance : Shrinkable GCounter where
+  shrink _ := [GCounter.empty]
+
+instance : Shrinkable GCounterOp where
+  shrink _ := []
+
+instance : Shrinkable PNCounter where
+  shrink _ := [PNCounter.empty]
+
+instance : Shrinkable PNCounterOp where
+  shrink _ := []
+
+instance : Shrinkable (LWWRegister α) where
+  shrink _ := [LWWRegister.empty]
+
+instance [Repr α] : Shrinkable (LWWRegisterOp α) where
+  shrink _ := []
+
+instance : Shrinkable (MVRegister α) where
+  shrink _ := [MVRegister.empty]
+
+instance [Repr α] : Shrinkable (MVRegisterOp α) where
+  shrink _ := []
+
+instance [BEq α] : Shrinkable (GSet α) where
+  shrink _ := [GSet.empty]
+
+instance : Shrinkable (GSetOp α) where
+  shrink _ := []
+
+instance [BEq α] : Shrinkable (TwoPSet α) where
+  shrink _ := [TwoPSet.empty]
+
+instance : Shrinkable (TwoPSetOp α) where
+  shrink _ := []
+
+instance [BEq α] [Hashable α] : Shrinkable (ORSet α) where
+  shrink _ := [ORSet.empty]
+
+instance : Shrinkable (ORSetOp α) where
+  shrink _ := []
+
+instance [BEq κ] [Hashable κ] : Shrinkable (LWWMap κ α) where
+  shrink _ := [LWWMap.empty]
+
+instance : Shrinkable (LWWMapOp κ α) where
+  shrink _ := []
+
+instance : Shrinkable (RGA α) where
+  shrink _ := [RGA.empty]
+
+instance : Shrinkable (RGAOp α) where
+  shrink _ := []
+
+/-! ## Arbitrary Instances for Core Types -/
+
+instance : Arbitrary ReplicaId where
+  arbitrary := do
+    let n ← genSmallNat 4
+    return { id := n }
+
+instance : Arbitrary LamportTs where
+  arbitrary := do
+    let time ← genSmallNat 10
+    let replica ← Arbitrary.arbitrary
+    return { time, replica }
+
+instance : Arbitrary VectorClock where
+  arbitrary := do
+    let numReplicas ← genSmallNat 3
+    let mut vc := VectorClock.empty
+    for i in [0:numReplicas] do
+      let time ← genSmallNat 5
+      vc := { clocks := vc.clocks.insert { id := i } time }
+    return vc
+
+instance : Arbitrary UniqueId where
+  arbitrary := do
+    let replica ← Arbitrary.arbitrary
+    let seq ← genSmallNat 10
+    return { replica, seq }
+
+/-! ## Arbitrary Instances for Counter Types -/
+
+instance : Arbitrary GCounter where
+  arbitrary := do
+    let numOps ← genSmallNat 5
+    let mut gc := GCounter.empty
+    for _ in [0:numOps] do
+      let replica ← Arbitrary.arbitrary
+      gc := GCounter.apply gc (GCounter.increment replica)
+    return gc
+
+instance : Arbitrary GCounterOp where
+  arbitrary := do
+    let replica ← Arbitrary.arbitrary
+    return { replica }
+
+instance : Arbitrary PNCounter where
+  arbitrary := do
+    let numOps ← genSmallNat 5
+    let mut pn := PNCounter.empty
+    for _ in [0:numOps] do
+      let replica ← Arbitrary.arbitrary
+      let isInc ← genSmallNat 1
+      let op := if isInc == 0 then PNCounter.increment replica else PNCounter.decrement replica
+      pn := PNCounter.apply pn op
+    return pn
+
+instance : Arbitrary PNCounterOp where
+  arbitrary := do
+    let replica ← Arbitrary.arbitrary
+    let isInc ← genSmallNat 1
+    return if isInc == 0 then .increment replica else .decrement replica
+
+/-! ## Arbitrary Instances for Register Types -/
+
+instance : Arbitrary (LWWRegister Nat) where
+  arbitrary := do
+    let hasValue ← genSmallNat 1
+    if hasValue == 0 then
+      return LWWRegister.empty
+    else
+      let value ← genSmallNat 100
+      let ts ← Arbitrary.arbitrary
+      return { value := some (value, ts) }
+
+instance : Arbitrary (LWWRegisterOp Nat) where
+  arbitrary := do
+    let value ← genSmallNat 100
+    let ts ← Arbitrary.arbitrary
+    return { value, timestamp := ts }
+
+instance : Arbitrary (MVRegister Nat) where
+  arbitrary := do
+    let numValues ← genSmallNat 2
+    let mut reg := MVRegister.empty
+    for _ in [0:numValues] do
+      let v ← genSmallNat 100
+      let vc ← Arbitrary.arbitrary
+      reg := MVRegister.apply reg (MVRegister.set v vc)
+    return reg
+
+instance : Arbitrary (MVRegisterOp Nat) where
+  arbitrary := do
+    let value ← genSmallNat 100
+    let clock ← Arbitrary.arbitrary
+    return { value, clock }
+
+/-! ## Arbitrary Instances for Set Types -/
+
+instance : Arbitrary (GSet Nat) where
+  arbitrary := do
+    let numElems ← genSmallNat 5
+    let mut gs := GSet.empty
+    for _ in [0:numElems] do
+      let v ← genSmallNat 20
+      gs := GSet.apply gs (GSet.add v)
+    return gs
+
+instance : Arbitrary (GSetOp Nat) where
+  arbitrary := do
+    let value ← genSmallNat 20
+    return { value }
+
+instance : Arbitrary (TwoPSet Nat) where
+  arbitrary := do
+    let numOps ← genSmallNat 5
+    let mut tps := TwoPSet.empty
+    for _ in [0:numOps] do
+      let v ← genSmallNat 10
+      let isAdd ← genSmallNat 2
+      let op := if isAdd < 2 then TwoPSet.add v else TwoPSet.remove v
+      tps := TwoPSet.apply tps op
+    return tps
+
+instance : Arbitrary (TwoPSetOp Nat) where
+  arbitrary := do
+    let value ← genSmallNat 10
+    let isAdd ← genSmallNat 1
+    return if isAdd == 0 then .add value else .remove value
+
+instance : Arbitrary (ORSet Nat) where
+  arbitrary := do
+    let numOps ← genSmallNat 4
+    let mut os := ORSet.empty
+    let mut seq := 0
+    for _ in [0:numOps] do
+      let v ← genSmallNat 10
+      let replica ← Arbitrary.arbitrary
+      let tag := UniqueId.new replica seq
+      seq := seq + 1
+      os := ORSet.apply os (ORSet.add v tag)
+    return os
+
+instance : Arbitrary (ORSetOp Nat) where
+  arbitrary := do
+    let value ← genSmallNat 10
+    let tag ← Arbitrary.arbitrary
+    return .add value tag
+
+/-! ## Arbitrary Instances for Map Type -/
+
+instance : Arbitrary (LWWMap Nat Nat) where
+  arbitrary := do
+    let numOps ← genSmallNat 4
+    let mut m := LWWMap.empty
+    for _ in [0:numOps] do
+      let key ← genSmallNat 5
+      let value ← genSmallNat 100
+      let ts ← Arbitrary.arbitrary
+      m := LWWMap.apply m (LWWMap.put key value ts)
+    return m
+
+instance : Arbitrary (LWWMapOp Nat Nat) where
+  arbitrary := do
+    let key ← genSmallNat 5
+    let value ← genSmallNat 100
+    let ts ← Arbitrary.arbitrary
+    let isPut ← genSmallNat 2
+    return if isPut < 2 then .put key value ts else .delete key ts
+
+/-! ## Arbitrary Instances for Sequence Type -/
+
+instance : Arbitrary (RGA Nat) where
+  arbitrary := do
+    let numOps ← genSmallNat 4
+    let mut rga := RGA.empty
+    let mut lastId : Option UniqueId := none
+    let mut seq := 0
+    for _ in [0:numOps] do
+      let value ← genSmallNat 100
+      let replica ← Arbitrary.arbitrary
+      let id := UniqueId.new replica seq
+      seq := seq + 1
+      rga := RGA.apply rga (RGA.insert lastId value id)
+      lastId := some id
+    return rga
+
+instance : Arbitrary (RGAOp Nat) where
+  arbitrary := do
+    let value ← genSmallNat 100
+    let id ← Arbitrary.arbitrary
+    let isInsert ← genSmallNat 2
+    if isInsert < 2 then
+      return .insert none value id
+    else
+      return .delete id
+
+/-! ## Property Tests: Merge Laws -/
+
+-- GCounter Merge Laws
+#test ∀ (a b : GCounter), gcounterEq (GCounter.merge a b) (GCounter.merge b a)
+#test ∀ (a b c : GCounter),
+  gcounterEq (GCounter.merge (GCounter.merge a b) c)
+             (GCounter.merge a (GCounter.merge b c))
+#test ∀ (a : GCounter), gcounterEq (GCounter.merge a a) a
+
+-- PNCounter Merge Laws
+#test ∀ (a b : PNCounter), pncounterEq (PNCounter.merge a b) (PNCounter.merge b a)
+#test ∀ (a b c : PNCounter),
+  pncounterEq (PNCounter.merge (PNCounter.merge a b) c)
+              (PNCounter.merge a (PNCounter.merge b c))
+#test ∀ (a : PNCounter), pncounterEq (PNCounter.merge a a) a
+
+-- LWWRegister Merge Laws
+#test ∀ (a b : LWWRegister Nat), lwwRegisterEq (LWWRegister.merge a b) (LWWRegister.merge b a)
+#test ∀ (a b c : LWWRegister Nat),
+  lwwRegisterEq (LWWRegister.merge (LWWRegister.merge a b) c)
+                (LWWRegister.merge a (LWWRegister.merge b c))
+#test ∀ (a : LWWRegister Nat), lwwRegisterEq (LWWRegister.merge a a) a
+
+-- MVRegister Merge Laws
+#test ∀ (a b : MVRegister Nat), mvRegisterEq (MVRegister.merge a b) (MVRegister.merge b a)
+#test ∀ (a : MVRegister Nat), mvRegisterEq (MVRegister.merge a a) a
+
+-- GSet Merge Laws
+#test ∀ (a b : GSet Nat), gsetEq (GSet.merge a b) (GSet.merge b a)
+#test ∀ (a b c : GSet Nat),
+  gsetEq (GSet.merge (GSet.merge a b) c)
+         (GSet.merge a (GSet.merge b c))
+#test ∀ (a : GSet Nat), gsetEq (GSet.merge a a) a
+
+-- TwoPSet Merge Laws
+#test ∀ (a b : TwoPSet Nat), twopsetEq (TwoPSet.merge a b) (TwoPSet.merge b a)
+#test ∀ (a b c : TwoPSet Nat),
+  twopsetEq (TwoPSet.merge (TwoPSet.merge a b) c)
+            (TwoPSet.merge a (TwoPSet.merge b c))
+#test ∀ (a : TwoPSet Nat), twopsetEq (TwoPSet.merge a a) a
+
+-- ORSet Merge Laws
+#test ∀ (a b : ORSet Nat), orsetEq (ORSet.merge a b) (ORSet.merge b a)
+#test ∀ (a b c : ORSet Nat),
+  orsetEq (ORSet.merge (ORSet.merge a b) c)
+          (ORSet.merge a (ORSet.merge b c))
+#test ∀ (a : ORSet Nat), orsetEq (ORSet.merge a a) a
+
+-- LWWMap Merge Laws
+#test ∀ (a b : LWWMap Nat Nat), lwwMapEq (LWWMap.merge a b) (LWWMap.merge b a)
+#test ∀ (a : LWWMap Nat Nat), lwwMapEq (LWWMap.merge a a) a
+
+-- RGA Merge Laws
+#test ∀ (a b : RGA Nat), rgaEq (RGA.merge a b) (RGA.merge b a)
+#test ∀ (a : RGA Nat), rgaEq (RGA.merge a a) a
+
+/-! ## Property Tests: Apply Commutativity -/
+
+-- GCounter apply commutes
+#test ∀ (s : GCounter) (op1 op2 : GCounterOp),
+  gcounterEq (GCounter.apply (GCounter.apply s op1) op2)
+             (GCounter.apply (GCounter.apply s op2) op1)
+
+-- PNCounter apply commutes
+#test ∀ (s : PNCounter) (op1 op2 : PNCounterOp),
+  pncounterEq (PNCounter.apply (PNCounter.apply s op1) op2)
+              (PNCounter.apply (PNCounter.apply s op2) op1)
+
+-- GSet apply commutes
+#test ∀ (s : GSet Nat) (op1 op2 : GSetOp Nat),
+  gsetEq (GSet.apply (GSet.apply s op1) op2)
+         (GSet.apply (GSet.apply s op2) op1)
+
+-- TwoPSet apply commutes
+#test ∀ (s : TwoPSet Nat) (op1 op2 : TwoPSetOp Nat),
+  twopsetEq (TwoPSet.apply (TwoPSet.apply s op1) op2)
+            (TwoPSet.apply (TwoPSet.apply s op2) op1)
+
+/-! ## Property Tests: Apply Idempotency -/
+
+-- GSet add is idempotent
+#test ∀ (gs : GSet Nat) (v : Nat),
+  let gs' := GSet.apply gs (GSet.add v)
+  gsetEq (GSet.apply gs' (GSet.add v)) gs'
+
+-- TwoPSet add is idempotent
+#test ∀ (tps : TwoPSet Nat) (v : Nat),
+  let tps' := TwoPSet.apply tps (TwoPSet.add v)
+  twopsetEq (TwoPSet.apply tps' (TwoPSet.add v)) tps'
+
+-- TwoPSet remove is idempotent
+#test ∀ (tps : TwoPSet Nat) (v : Nat),
+  let tps' := TwoPSet.apply tps (TwoPSet.remove v)
+  twopsetEq (TwoPSet.apply tps' (TwoPSet.remove v)) tps'
+
+/-! ## Property Tests: Type-Specific Properties -/
+
+-- GCounter value is monotonically non-decreasing
+#test ∀ (gc : GCounter) (op : GCounterOp),
+  let gc' := GCounter.apply gc op
+  gc'.value >= gc.value
+
+-- PNCounter increment increases value
+#test ∀ (pn : PNCounter) (r : ReplicaId),
+  let pn' := PNCounter.apply pn (PNCounter.increment r)
+  pn'.value == pn.value + 1
+
+-- PNCounter decrement decreases value
+#test ∀ (pn : PNCounter) (r : ReplicaId),
+  let pn' := PNCounter.apply pn (PNCounter.decrement r)
+  pn'.value == pn.value - 1
+
+-- GSet contains element after add
+#test ∀ (gs : GSet Nat) (v : Nat),
+  let gs' := GSet.apply gs (GSet.add v)
+  gs'.contains v
+
+-- TwoPSet: once removed, cannot re-add
+#test ∀ (v : Nat),
+  let tps := TwoPSet.empty
+    |> fun s => TwoPSet.apply s (TwoPSet.add v)
+    |> fun s => TwoPSet.apply s (TwoPSet.remove v)
+    |> fun s => TwoPSet.apply s (TwoPSet.add v)
+  !tps.contains v
+
+-- ORSet contains element after add
+#test ∀ (v : Nat) (tag : UniqueId),
+  let os := ORSet.apply ORSet.empty (ORSet.add v tag)
+  os.contains v
+
+-- LWWMap contains key after put
+#test ∀ (k v : Nat) (ts : LamportTs),
+  let m := LWWMap.apply LWWMap.empty (LWWMap.put k v ts)
+  m.contains k
+
+-- RGA contains ID after insert
+#test ∀ (v : Nat) (id : UniqueId),
+  let rga := RGA.apply RGA.empty (RGA.insert none v id)
+  rga.containsId id
+
+-- RGA delete makes element invisible but keeps ID
+#test ∀ (v : Nat) (id : UniqueId),
+  let rga := RGA.apply RGA.empty (RGA.insert none v id)
+  let rga' := RGA.apply rga (RGA.delete id)
+  rga'.containsId id && rga'.length == 0
+
+end ConvergentTests.PropertyTests

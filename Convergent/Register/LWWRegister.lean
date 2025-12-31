@@ -54,13 +54,22 @@ def apply (reg : LWWRegister α) (op : LWWRegisterOp α) : LWWRegister α :=
 def set (value : α) (timestamp : LamportTs) : LWWRegisterOp α :=
   { value, timestamp }
 
-/-- Merge two registers (take the one with higher timestamp) -/
-def merge (a b : LWWRegister α) : LWWRegister α :=
+/-- Merge two registers (take the one with higher timestamp).
+    When timestamps are equal, uses value comparison as tie-breaker for commutativity. -/
+def merge [Ord α] (a b : LWWRegister α) : LWWRegister α :=
   match a.value, b.value with
   | none, _ => b
   | _, none => a
-  | some (_, tsA), some (_, tsB) =>
-    if tsA >= tsB then a else b
+  | some (valA, tsA), some (valB, tsB) =>
+    match compare tsA tsB with
+    | .gt => a
+    | .lt => b
+    | .eq =>
+      -- Equal timestamps: use value as deterministic tie-breaker for commutativity
+      match compare valA valB with
+      | .gt => a
+      | .lt => b
+      | .eq => a  -- Values are equal, either choice works
 
 instance : CmRDT (LWWRegister α) (LWWRegisterOp α) where
   empty := empty

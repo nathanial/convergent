@@ -66,14 +66,36 @@ def apply (reg : MVRegister α) (op : MVRegisterOp α) : MVRegister α :=
 def set (value : α) (clock : VectorClock) : MVRegisterOp α :=
   { value, clock }
 
-/-- Merge two registers (keep all non-dominated values from both) -/
-def merge [BEq α] (a b : MVRegister α) : MVRegister α :=
+/-- Check if two vector clocks are equivalent (mutually dominate) -/
+private def clocksEquivalent (a b : VectorClock) : Bool :=
+  VectorClock.dominates a b && VectorClock.dominates b a
+
+/-- Compare vector clocks for deterministic ordering -/
+private def compareClock (a b : VectorClock) : Ordering :=
+  -- Use string representation for deterministic comparison
+  compare (toString a) (toString b)
+
+/-- Merge two registers (keep all non-dominated values from both).
+    Uses deterministic ordering to ensure commutativity. -/
+def merge [BEq α] [Ord α] (a b : MVRegister α) : MVRegister α :=
   let combined := a.values ++ b.values
-  -- Remove duplicates and dominated values
-  let filtered := combined.foldl (init := []) fun acc (v, vc) =>
+  -- Sort by (clock, value) to ensure deterministic processing order
+  let sorted := combined.toArray.qsort fun (v1, vc1) (v2, vc2) =>
+    match compareClock vc1 vc2 with
+    | .lt => true
+    | .gt => false
+    | .eq => compare v1 v2 == .lt
+  -- Remove dominated values, keeping only non-dominated ones
+  let filtered := sorted.toList.foldl (init := []) fun acc (v, vc) =>
     if isDominated vc acc then acc
     else (v, vc) :: removeDominated vc acc
-  { values := filtered }
+  -- Sort result for consistent output order
+  let result := filtered.toArray.qsort fun (v1, vc1) (v2, vc2) =>
+    match compareClock vc1 vc2 with
+    | .lt => true
+    | .gt => false
+    | .eq => compare v1 v2 == .lt
+  { values := result.toList }
 
 instance : CmRDT (MVRegister α) (MVRegisterOp α) where
   empty := empty

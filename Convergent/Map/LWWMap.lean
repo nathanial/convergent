@@ -95,13 +95,30 @@ def put (key : κ) (value : α) (timestamp : LamportTs) : LWWMapOp κ α :=
 def delete (key : κ) (timestamp : LamportTs) : LWWMapOp κ α :=
   .delete key timestamp
 
-/-- Merge two maps (take entry with higher timestamp for each key) -/
-def merge (a b : LWWMap κ α) : LWWMap κ α :=
+/-- Compare Option α values for deterministic tie-breaking -/
+private def compareOptionVal [Ord α] (a b : Option α) : Ordering :=
+  match a, b with
+  | none, none => .eq
+  | none, some _ => .lt
+  | some _, none => .gt
+  | some va, some vb => compare va vb
+
+/-- Merge two maps (take entry with higher timestamp for each key).
+    When timestamps are equal, uses value comparison as tie-breaker for commutativity. -/
+def merge [Ord α] (a b : LWWMap κ α) : LWWMap κ α :=
   let merged := a.entries.fold (init := b.entries) fun acc key (valA, tsA) =>
     match acc[key]? with
     | none => acc.insert key (valA, tsA)
-    | some (_, tsB) =>
-      if tsA >= tsB then acc.insert key (valA, tsA) else acc
+    | some (valB, tsB) =>
+      match compare tsA tsB with
+      | .gt => acc.insert key (valA, tsA)
+      | .lt => acc
+      | .eq =>
+        -- Equal timestamps: use value as deterministic tie-breaker
+        match compareOptionVal valA valB with
+        | .gt => acc.insert key (valA, tsA)
+        | .lt => acc
+        | .eq => acc  -- Values equal, keep existing (either works)
   { entries := merged }
 
 instance : CmRDT (LWWMap κ α) (LWWMapOp κ α) where

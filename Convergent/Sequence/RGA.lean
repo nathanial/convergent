@@ -105,7 +105,8 @@ private def insertAfter (nodes : List (RGANode α)) (afterId : Option UniqueId)
           go (node :: acc) rest
     go [] nodes
 
-/-- Apply an operation -/
+/-- Apply an operation.
+    Maintains ID-sorted order for CRDT law compliance. -/
 def apply (rga : RGA α) (op : RGAOp α) : RGA α :=
   match op with
   | .insert afterId value id =>
@@ -114,7 +115,10 @@ def apply (rga : RGA α) (op : RGAOp α) : RGA α :=
       rga
     else
       let newNode : RGANode α := { id, value := some value }
-      { nodes := insertAfter rga.nodes afterId newNode }
+      let inserted := insertAfter rga.nodes afterId newNode
+      -- Sort by ID to maintain consistent ordering for CRDT laws
+      let sorted := inserted.toArray.qsort fun a b => a.id < b.id
+      { nodes := sorted.toList }
   | .delete id =>
     let newNodes := rga.nodes.map fun node =>
       if node.id == id then { node with value := none }
@@ -129,21 +133,33 @@ def insert (afterId : Option UniqueId) (value : α) (id : UniqueId) : RGAOp α :
 def delete (id : UniqueId) : RGAOp α :=
   .delete id
 
-/-- Merge two RGAs by replaying all unique operations -/
-def merge (a b : RGA α) : RGA α :=
-  -- Collect all unique nodes from both
-  let allNodes := a.nodes ++ b.nodes.filter fun bNode =>
-    !a.nodes.any fun aNode => aNode.id == bNode.id
-  -- Merge tombstones: if either has deleted, it's deleted
-  let mergedNodes := allNodes.map fun node =>
-    let inA := a.nodes.find? fun n => n.id == node.id
-    let inB := b.nodes.find? fun n => n.id == node.id
+/-- Merge two RGAs (state-based merge).
+    Combines all nodes, with tombstones taking precedence.
+    Uses deterministic ordering for commutativity. -/
+def merge [Ord α] (a b : RGA α) : RGA α :=
+  -- Collect all unique IDs from both
+  let aIds := a.nodes.map (·.id)
+  let bIds := b.nodes.map (·.id)
+  let allIds := (aIds ++ bIds).foldl (init := []) fun acc id =>
+    if acc.any (· == id) then acc else id :: acc
+  -- For each ID, merge the nodes
+  let mergedNodes := allIds.filterMap fun id =>
+    let inA := a.nodes.find? fun n => n.id == id
+    let inB := b.nodes.find? fun n => n.id == id
     match inA, inB with
     | some nA, some nB =>
+      -- Both have this ID - tombstone wins, otherwise pick deterministically
       if nA.value.isNone || nB.value.isNone then
-        { node with value := none }
-      else node
-    | _, _ => node
+        some { nA with value := none }
+      else
+        -- Both have values - pick deterministically by value comparison
+        match compare nA.value nB.value with
+        | .gt => some nA
+        | .lt => some nB
+        | .eq => some nA
+    | some n, none => some n
+    | none, some n => some n
+    | none, none => none
   -- Sort by ID to maintain consistent ordering
   let sorted := mergedNodes.toArray.qsort fun a b => a.id < b.id
   { nodes := sorted.toList }
