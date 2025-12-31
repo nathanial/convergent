@@ -173,6 +173,76 @@ test "ORMap multiple keys with nested counters" := do
   (m.getOne "likes" |>.map (·.value)) ≡ some 1
   (m.getOne "views" |>.map (·.value)) ≡ some 2
 
+-- Deeply nested: ORMap of ORMap of PNCounter (3 levels)
+-- Type: user -> (metric -> counter)
+abbrev InnerMap := ORMap String PNCounter PNCounterOp
+abbrev OuterMap := ORMap String InnerMap (ORMapOp String PNCounter PNCounterOp)
+
+test "ORMap deeply nested - map of maps of counters" := do
+  let r1 : ReplicaId := 1
+  let outerTag := UniqueId.new r1 1
+  let innerTag := UniqueId.new r1 2
+  -- Create outer map with an inner map for "alice"
+  let innerMap : InnerMap := ORMap.empty
+    |> fun s => ORMap.apply s (.put "score" PNCounter.empty innerTag)
+  let m : OuterMap := ORMap.empty
+    |> fun s => ORMap.apply s (.put "alice" innerMap outerTag)
+  -- Verify structure
+  (m.contains "alice") ≡ true
+  match m.getOne "alice" with
+  | some inner => (inner.getOne "score" |>.map (·.value)) ≡ some 0
+  | none => pure ()
+
+test "ORMap deeply nested - update inner map" := do
+  let r1 : ReplicaId := 1
+  let outerTag := UniqueId.new r1 1
+  let innerTag := UniqueId.new r1 2
+  -- Create structure
+  let innerMap : InnerMap := ORMap.empty
+    |> fun s => ORMap.apply s (.put "score" PNCounter.empty innerTag)
+  let m : OuterMap := ORMap.empty
+    |> fun s => ORMap.apply s (.put "alice" innerMap outerTag)
+    -- Update the inner map: increment alice's score counter
+    |> fun s => ORMap.apply s (.update "alice" outerTag
+        (.update "score" innerTag (.increment r1)))
+    |> fun s => ORMap.apply s (.update "alice" outerTag
+        (.update "score" innerTag (.increment r1)))
+  -- Verify alice's score is 2
+  match m.getOne "alice" with
+  | some inner => (inner.getOne "score" |>.map (·.value)) ≡ some 2
+  | none => pure ()
+
+test "ORMap deeply nested - multiple users" := do
+  let r1 : ReplicaId := 1
+  let aliceOuterTag := UniqueId.new r1 1
+  let bobOuterTag := UniqueId.new r1 2
+  let aliceScoreTag := UniqueId.new r1 3
+  let bobScoreTag := UniqueId.new r1 4
+  -- Create maps for alice and bob
+  let aliceMap : InnerMap := ORMap.empty
+    |> fun s => ORMap.apply s (.put "score" PNCounter.empty aliceScoreTag)
+  let bobMap : InnerMap := ORMap.empty
+    |> fun s => ORMap.apply s (.put "score" PNCounter.empty bobScoreTag)
+  let m : OuterMap := ORMap.empty
+    |> fun s => ORMap.apply s (.put "alice" aliceMap aliceOuterTag)
+    |> fun s => ORMap.apply s (.put "bob" bobMap bobOuterTag)
+    -- Alice scores 3 points
+    |> fun s => ORMap.apply s (.update "alice" aliceOuterTag
+        (.update "score" aliceScoreTag (.increment r1)))
+    |> fun s => ORMap.apply s (.update "alice" aliceOuterTag
+        (.update "score" aliceScoreTag (.increment r1)))
+    |> fun s => ORMap.apply s (.update "alice" aliceOuterTag
+        (.update "score" aliceScoreTag (.increment r1)))
+    -- Bob scores 1 point
+    |> fun s => ORMap.apply s (.update "bob" bobOuterTag
+        (.update "score" bobScoreTag (.increment r1)))
+  -- Verify
+  match m.getOne "alice", m.getOne "bob" with
+  | some alice, some bob =>
+    (alice.getOne "score" |>.map (·.value)) ≡ some 3
+    (bob.getOne "score" |>.map (·.value)) ≡ some 1
+  | _, _ => pure ()
+
 #generate_tests
 
 end ConvergentTests.MapTests
