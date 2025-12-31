@@ -76,6 +76,14 @@ def ormapEq [BEq κ] [Hashable κ] (a b : ORMap κ α OpA) : Bool :=
     aTags.length == bTags.length &&
     aTags.all fun t => bTags.any (· == t)
 
+/-- Compare EWFlags by enabled/disabled sets -/
+def ewflagEq (a b : EWFlag) : Bool :=
+  gsetEq a.enabled b.enabled && gsetEq a.disabled b.disabled
+
+/-- Compare DWFlags by enabled/disabled sets -/
+def dwflagEq (a b : DWFlag) : Bool :=
+  gsetEq a.enabled b.enabled && gsetEq a.disabled b.disabled
+
 /-! ## Random Generators -/
 
 /-- Generate a small Nat in range [0, n] -/
@@ -121,6 +129,16 @@ instance [Repr κ] [Repr α] [Repr OpA] : Repr (ORMapOp κ α OpA) where
     | .put k v tag => s!"ORMapOp.put({repr k}, {repr v}, {repr tag})"
     | .delete k tags => s!"ORMapOp.delete({repr k}, {repr tags})"
     | .update k tag nestedOp => s!"ORMapOp.update({repr k}, {repr tag}, {repr nestedOp})"
+
+instance : Repr EWFlagOp where
+  reprPrec op _ := match op with
+    | .enable r => s!"EWFlagOp.enable({repr r})"
+    | .disable r => s!"EWFlagOp.disable({repr r})"
+
+instance : Repr DWFlagOp where
+  reprPrec op _ := match op with
+    | .enable r => s!"DWFlagOp.enable({repr r})"
+    | .disable r => s!"DWFlagOp.disable({repr r})"
 
 /-! ## Shrinkable Instances -/
 
@@ -194,6 +212,18 @@ instance [BEq κ] [Hashable κ] : Shrinkable (ORMap κ α OpA) where
   shrink _ := [ORMap.empty]
 
 instance : Shrinkable (ORMapOp κ α OpA) where
+  shrink _ := []
+
+instance : Shrinkable EWFlag where
+  shrink _ := [EWFlag.empty]
+
+instance : Shrinkable EWFlagOp where
+  shrink _ := []
+
+instance : Shrinkable DWFlag where
+  shrink _ := [DWFlag.empty]
+
+instance : Shrinkable DWFlagOp where
   shrink _ := []
 
 /-! ## Arbitrary Instances for Core Types -/
@@ -412,6 +442,42 @@ instance : Arbitrary (RGAOp Nat) where
     else
       return .delete id
 
+/-! ## Arbitrary Instances for Flag Types -/
+
+instance : Arbitrary EWFlag where
+  arbitrary := do
+    let numOps ← genSmallNat 4
+    let mut f := EWFlag.empty
+    for _ in [0:numOps] do
+      let replica ← Arbitrary.arbitrary
+      let isEnable ← genSmallNat 1
+      let op := if isEnable == 0 then EWFlag.enable replica else EWFlag.disable replica
+      f := EWFlag.apply f op
+    return f
+
+instance : Arbitrary EWFlagOp where
+  arbitrary := do
+    let replica ← Arbitrary.arbitrary
+    let isEnable ← genSmallNat 1
+    return if isEnable == 0 then .enable replica else .disable replica
+
+instance : Arbitrary DWFlag where
+  arbitrary := do
+    let numOps ← genSmallNat 4
+    let mut f := DWFlag.empty
+    for _ in [0:numOps] do
+      let replica ← Arbitrary.arbitrary
+      let isEnable ← genSmallNat 1
+      let op := if isEnable == 0 then DWFlag.enable replica else DWFlag.disable replica
+      f := DWFlag.apply f op
+    return f
+
+instance : Arbitrary DWFlagOp where
+  arbitrary := do
+    let replica ← Arbitrary.arbitrary
+    let isEnable ← genSmallNat 1
+    return if isEnable == 0 then .enable replica else .disable replica
+
 /-! ## Property Tests: Merge Laws -/
 
 -- GCounter Merge Laws
@@ -484,6 +550,20 @@ instance : Arbitrary (RGAOp Nat) where
           (ORMap.merge a (ORMap.merge b c))
 #test ∀ (a : ORMap Nat Nat Unit), ormapEq (ORMap.merge a a) a
 
+-- EWFlag Merge Laws
+#test ∀ (a b : EWFlag), ewflagEq (EWFlag.merge a b) (EWFlag.merge b a)
+#test ∀ (a b c : EWFlag),
+  ewflagEq (EWFlag.merge (EWFlag.merge a b) c)
+           (EWFlag.merge a (EWFlag.merge b c))
+#test ∀ (a : EWFlag), ewflagEq (EWFlag.merge a a) a
+
+-- DWFlag Merge Laws
+#test ∀ (a b : DWFlag), dwflagEq (DWFlag.merge a b) (DWFlag.merge b a)
+#test ∀ (a b c : DWFlag),
+  dwflagEq (DWFlag.merge (DWFlag.merge a b) c)
+           (DWFlag.merge a (DWFlag.merge b c))
+#test ∀ (a : DWFlag), dwflagEq (DWFlag.merge a a) a
+
 /-! ## Property Tests: Apply Commutativity -/
 
 -- GCounter apply commutes
@@ -535,6 +615,16 @@ instance : Arbitrary (RGAOp Nat) where
 #test ∀ (s : ORMap Nat Nat Unit) (op1 op2 : ORMapOp Nat Nat Unit),
   ormapEq (ORMap.apply (ORMap.apply s op1) op2)
           (ORMap.apply (ORMap.apply s op2) op1)
+
+-- EWFlag apply commutes
+#test ∀ (s : EWFlag) (op1 op2 : EWFlagOp),
+  ewflagEq (EWFlag.apply (EWFlag.apply s op1) op2)
+           (EWFlag.apply (EWFlag.apply s op2) op1)
+
+-- DWFlag apply commutes
+#test ∀ (s : DWFlag) (op1 op2 : DWFlagOp),
+  dwflagEq (DWFlag.apply (DWFlag.apply s op1) op2)
+           (DWFlag.apply (DWFlag.apply s op2) op1)
 
 /-! ## Property Tests: Apply Idempotency -/
 
@@ -604,6 +694,26 @@ instance : Arbitrary (RGAOp Nat) where
   let op := ORMap.delete m k
   let m' := ORMap.apply m op
   ormapEq (ORMap.apply m' op) m'
+
+-- EWFlag enable is idempotent
+#test ∀ (f : EWFlag) (r : ReplicaId),
+  let f' := EWFlag.apply f (EWFlag.enable r)
+  ewflagEq (EWFlag.apply f' (EWFlag.enable r)) f'
+
+-- EWFlag disable is idempotent
+#test ∀ (f : EWFlag) (r : ReplicaId),
+  let f' := EWFlag.apply f (EWFlag.disable r)
+  ewflagEq (EWFlag.apply f' (EWFlag.disable r)) f'
+
+-- DWFlag enable is idempotent
+#test ∀ (f : DWFlag) (r : ReplicaId),
+  let f' := DWFlag.apply f (DWFlag.enable r)
+  dwflagEq (DWFlag.apply f' (DWFlag.enable r)) f'
+
+-- DWFlag disable is idempotent
+#test ∀ (f : DWFlag) (r : ReplicaId),
+  let f' := DWFlag.apply f (DWFlag.disable r)
+  dwflagEq (DWFlag.apply f' (DWFlag.disable r)) f'
 
 /-! ## Property Tests: Type-Specific Properties -/
 
@@ -750,6 +860,36 @@ instance : Arbitrary (RGAOp Nat) where
   let m'' := ORMap.apply m' (ORMap.put k v tag2)
   m''.contains k
 
+-- EWFlag: empty is false
+#test EWFlag.empty.value == false
+
+-- EWFlag: enable makes true
+#test ∀ (r : ReplicaId),
+  let f := EWFlag.apply EWFlag.empty (EWFlag.enable r)
+  f.value == true
+
+-- EWFlag: enable-wins (enable + disable = true)
+#test ∀ (r1 r2 : ReplicaId),
+  let f := EWFlag.empty
+    |> fun s => EWFlag.apply s (EWFlag.enable r1)
+    |> fun s => EWFlag.apply s (EWFlag.disable r2)
+  f.value == true
+
+-- DWFlag: empty is false
+#test DWFlag.empty.value == false
+
+-- DWFlag: enable makes true (when no disables)
+#test ∀ (r : ReplicaId),
+  let f := DWFlag.apply DWFlag.empty (DWFlag.enable r)
+  f.value == true
+
+-- DWFlag: disable-wins (enable + disable = false)
+#test ∀ (r1 r2 : ReplicaId),
+  let f := DWFlag.empty
+    |> fun s => DWFlag.apply s (DWFlag.enable r1)
+    |> fun s => DWFlag.apply s (DWFlag.disable r2)
+  f.value == false
+
 /-! ## Property Tests: Monotonicity -/
 
 -- GSet elements are never removed (add element, apply another op, element still there)
@@ -833,5 +973,17 @@ instance : Arbitrary (RGAOp Nat) where
   let forward := ORMap.apply (ORMap.apply (ORMap.apply m op1) op2) op3
   let reverse := ORMap.apply (ORMap.apply (ORMap.apply m op3) op2) op1
   ormapEq forward reverse
+
+-- EWFlag convergence (3 ops)
+#test ∀ (f : EWFlag) (op1 op2 op3 : EWFlagOp),
+  let forward := EWFlag.apply (EWFlag.apply (EWFlag.apply f op1) op2) op3
+  let reverse := EWFlag.apply (EWFlag.apply (EWFlag.apply f op3) op2) op1
+  ewflagEq forward reverse
+
+-- DWFlag convergence (3 ops)
+#test ∀ (f : DWFlag) (op1 op2 op3 : DWFlagOp),
+  let forward := DWFlag.apply (DWFlag.apply (DWFlag.apply f op1) op2) op3
+  let reverse := DWFlag.apply (DWFlag.apply (DWFlag.apply f op3) op2) op1
+  dwflagEq forward reverse
 
 end ConvergentTests.PropertyTests

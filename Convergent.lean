@@ -30,6 +30,10 @@
   ### Sequences
   - `RGA` - Replicated Growable Array (for lists/text)
 
+  ### Flags
+  - `EWFlag` - Enable-wins flag (concurrent enable + disable = enabled)
+  - `DWFlag` - Disable-wins flag (concurrent enable + disable = disabled)
+
   ## Quick Start
 
   ```lean
@@ -76,6 +80,10 @@ import Convergent.Map.ORMap
 
 -- Sequences
 import Convergent.Sequence.RGA
+
+-- Flags
+import Convergent.Flag.EWFlag
+import Convergent.Flag.DWFlag
 
 namespace Convergent
 end Convergent

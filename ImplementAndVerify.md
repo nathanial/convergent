@@ -46,8 +46,8 @@
 
 | CRDT | Status | Description |
 |------|:------:|-------------|
-| EWFlag | ✗ | Enable-wins flag (concurrent enable + disable = enabled) |
-| DWFlag | ✗ | Disable-wins flag (concurrent enable + disable = disabled) |
+| EWFlag | ✓ | Enable-wins flag (concurrent enable + disable = enabled) |
+| DWFlag | ✓ | Disable-wins flag (concurrent enable + disable = disabled) |
 
 ### Graphs
 
@@ -62,22 +62,22 @@
 
 ### Core CRDT Laws
 
-| Property | GCounter | PNCounter | LWWReg | MVReg | GSet | TwoPSet | ORSet | LWWMap | ORMap | RGA |
-|----------|:--------:|:---------:|:------:|:-----:|:----:|:-------:|:-----:|:------:|:-----:|:---:|
-| Merge commutativity | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Merge associativity | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Merge idempotency | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Apply commutativity | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Apply idempotency | n/a | n/a | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Property | GCounter | PNCounter | LWWReg | MVReg | GSet | TwoPSet | ORSet | LWWMap | ORMap | RGA | EWFlag | DWFlag |
+|----------|:--------:|:---------:|:------:|:-----:|:----:|:-------:|:-----:|:------:|:-----:|:---:|:------:|:------:|
+| Merge commutativity | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Merge associativity | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Merge idempotency | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Apply commutativity | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Apply idempotency | n/a | n/a | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 
 Legend: ✓ = tested and passing, ✗ = not yet tested, n/a = not applicable
 
 ### Convergence
 
-| Property | GCounter | PNCounter | LWWReg | MVReg | GSet | TwoPSet | ORSet | LWWMap | ORMap | RGA |
-|----------|:--------:|:---------:|:------:|:-----:|:----:|:-------:|:-----:|:------:|:-----:|:---:|
-| 2-op convergence | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| 3-op convergence | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Property | GCounter | PNCounter | LWWReg | MVReg | GSet | TwoPSet | ORSet | LWWMap | ORMap | RGA | EWFlag | DWFlag |
+|----------|:--------:|:---------:|:------:|:-----:|:----:|:-------:|:-----:|:------:|:-----:|:---:|:------:|:------:|
+| 2-op convergence | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| 3-op convergence | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 
 Note: 2-op convergence covered by apply commutativity. 3-op tests forward vs reverse ordering.
 
@@ -106,18 +106,20 @@ Note: 2-op convergence covered by apply commutativity. 3-op tests forward vs rev
 | Inc/dec work correctly | PNCounter | ✓ |
 | Contains key after put | ORMap | ✓ |
 | Get returns value after put | ORMap | ✓ |
+| Enable-wins (concurrent = enabled) | EWFlag | ✓ |
+| Disable-wins (concurrent = disabled) | DWFlag | ✓ |
 
 ---
 
 ## Test Summary
 
-**Total Property Tests: 88**
+**Total Property Tests: 108**
 
-- Core CRDT laws: 30 tests (merge laws) + 10 tests (apply commutativity) + 13 tests (apply idempotency)
-- Convergence: 10 tests (3-op)
+- Core CRDT laws: 36 tests (merge laws) + 12 tests (apply commutativity) + 15 tests (apply idempotency)
+- Convergence: 12 tests (3-op)
 - Monotonicity: 4 tests
-- Type-specific: 13 tests
-- Additional semantics: 8 tests
+- Type-specific: 15 tests (includes EWFlag/DWFlag semantics)
+- Additional semantics: 14 tests
 
 ---
 
@@ -131,10 +133,10 @@ When implementing new CRDTs, they should satisfy:
 - [ ] Merge idempotency
 - [ ] Apply commutativity
 
-### EWFlag / DWFlag
-- [ ] Apply idempotency
-- [ ] Enable-wins (EWFlag): concurrent enable + disable = enabled
-- [ ] Disable-wins (DWFlag): concurrent enable + disable = disabled
+### EWFlag / DWFlag (Implemented ✓)
+- [x] Apply idempotency
+- [x] Enable-wins (EWFlag): concurrent enable + disable = enabled
+- [x] Disable-wins (DWFlag): concurrent enable + disable = disabled
 
 ### BoundedCounter
 - [ ] Value stays within bounds
@@ -156,9 +158,10 @@ lake build && lake test
 
 ## Test Files
 
-- `ConvergentTests/PropertyTests.lean` - Plausible property tests (78 tests)
+- `ConvergentTests/PropertyTests.lean` - Plausible property tests
 - `ConvergentTests/CounterTests.lean` - GCounter, PNCounter unit tests
 - `ConvergentTests/RegisterTests.lean` - LWWRegister, MVRegister unit tests
 - `ConvergentTests/SetTests.lean` - GSet, TwoPSet, ORSet unit tests
-- `ConvergentTests/MapTests.lean` - LWWMap unit tests
+- `ConvergentTests/MapTests.lean` - LWWMap, ORMap unit tests
 - `ConvergentTests/SequenceTests.lean` - RGA unit tests
+- `ConvergentTests/FlagTests.lean` - EWFlag, DWFlag unit tests
