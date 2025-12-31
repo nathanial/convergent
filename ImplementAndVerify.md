@@ -58,52 +58,37 @@
 
 ---
 
-## Test Coverage Matrices
-
-### Core CRDT Laws
+## Test Coverage Matrix
 
 | Property | GCounter | PNCounter | LWWReg | MVReg | GSet | TwoPSet | ORSet | LWWMap | RGA |
 |----------|:--------:|:---------:|:------:|:-----:|:----:|:-------:|:-----:|:------:|:---:|
+| **Core CRDT Laws** |
 | Merge commutativity | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Merge associativity | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Merge idempotency | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Apply commutativity | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Apply idempotency | n/a | n/a | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-
-Legend: ✓ = tested and passing, ✗ = not yet tested, n/a = not applicable
-
-### Convergence
-
-| Property | GCounter | PNCounter | LWWReg | MVReg | GSet | TwoPSet | ORSet | LWWMap | RGA |
-|----------|:--------:|:---------:|:------:|:-----:|:----:|:-------:|:-----:|:------:|:---:|
+| Apply idempotency | · | · | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| **Convergence** |
 | 2-op convergence | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | 3-op convergence | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| **Monotonicity** |
+| Value never decreases | ✓ | · | · | · | · | · | · | · | · |
+| Elements never removed | · | · | · | · | ✓ | · | · | · | · |
+| Added set never shrinks | · | · | · | · | · | ✓ | · | · | · |
+| Removed set never shrinks | · | · | · | · | · | ✓ | · | · | · |
+| **Type-Specific Semantics** |
+| Later timestamp wins | · | · | ✓ | · | · | · | · | ✓ | · |
+| Dominated values removed | · | · | · | ✓ | · | · | · | · | · |
+| Concurrent values preserved | · | · | · | ✓ | · | · | · | · | · |
+| Re-add after remove works | · | · | · | · | · | · | ✓ | · | · |
+| Remove-then-add is add | · | · | · | · | · | · | ✓ | · | · |
+| Removed cannot re-add | · | · | · | · | · | ✓ | · | · | · |
+| Insert ordering preserved | · | · | · | · | · | · | · | · | ✓ |
+| Delete creates tombstone | · | · | · | · | · | · | · | · | ✓ |
+| Increment adds exactly 1 | ✓ | · | · | · | · | · | · | · | · |
+| Inc/dec work correctly | · | ✓ | · | · | · | · | · | · | · |
 
-Note: 2-op convergence covered by apply commutativity. 3-op tests forward vs reverse ordering.
-
-### Monotonicity
-
-| Property | GCounter | PNCounter | LWWReg | MVReg | GSet | TwoPSet | ORSet | LWWMap | RGA |
-|----------|:--------:|:---------:|:------:|:-----:|:----:|:-------:|:-----:|:------:|:---:|
-| Value never decreases | ✓ | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
-| Elements never removed | n/a | n/a | n/a | n/a | ✓ | n/a | n/a | n/a | n/a |
-| Added set never shrinks | n/a | n/a | n/a | n/a | n/a | ✓ | n/a | n/a | n/a |
-| Removed set never shrinks | n/a | n/a | n/a | n/a | n/a | ✓ | n/a | n/a | n/a |
-
-### Type-Specific Semantics
-
-| Property | Applicable CRDTs | Status |
-|----------|------------------|:------:|
-| Later timestamp wins | LWWReg, LWWMap | ✓ |
-| Dominated values removed | MVReg | ✓ |
-| Concurrent values preserved | MVReg | ✓ |
-| Re-add after remove works | ORSet | ✓ |
-| Remove-then-add is add | ORSet | ✓ |
-| Removed cannot re-add | TwoPSet | ✓ |
-| Insert ordering preserved | RGA | ✓ |
-| Delete creates tombstone | RGA | ✓ |
-| Increment adds exactly 1 | GCounter | ✓ |
-| Inc/dec work correctly | PNCounter | ✓ |
+Legend: ✓ = tested, · = not applicable
 
 ---
 
