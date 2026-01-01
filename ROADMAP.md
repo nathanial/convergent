@@ -2,6 +2,23 @@
 
 This document outlines potential improvements, new features, and code cleanup opportunities for the Convergent CRDT library.
 
+## Completed
+
+The following roadmap items have been implemented:
+
+| Item | Description |
+|------|-------------|
+| ✓ ORMap | Observed-remove map with nested CRDT support |
+| ✓ TwoPGraph | Two-phase graph (vertices and edges are TwoPSets) |
+| ✓ EWFlag/DWFlag | Enable-wins and disable-wins flag CRDTs |
+| ✓ LWWElementSet | Per-element timestamp set |
+| ✓ PNMap | Map with PNCounter values |
+| ✓ LSEQ | Adaptive position-based sequence CRDT |
+| ✓ Property-Based Tests | 158 tests covering all CRDT laws with Plausible |
+| ✓ Merge Tests | Covered by property tests (commutativity, associativity, idempotency) |
+
+---
+
 ## Feature Proposals
 
 ### [Priority: High] Add Delta-state CRDTs (delta-CRDTs)
@@ -22,22 +39,6 @@ This document outlines potential improvements, new features, and code cleanup op
 
 ---
 
-### [Priority: High] Add ORMap (Observed-Remove Map)
-
-**Description:** Implement an ORMap that combines ORSet semantics for keys with arbitrary CRDT values. This allows nested CRDTs within map values, enabling more complex distributed data structures.
-
-**Rationale:** LWWMap is limited to simple last-writer-wins semantics. ORMap enables building complex nested structures like JSON-like documents with per-field conflict resolution.
-
-**Affected Files:**
-- New file: `Convergent/Map/ORMap.lean`
-- Update `Convergent.lean` to export the new module
-
-**Estimated Effort:** Medium
-
-**Dependencies:** None
-
----
-
 ### [Priority: High] Add Serialization Support
 
 **Description:** Add JSON and binary serialization for all CRDT types to enable network transmission and persistence.
@@ -52,39 +53,6 @@ This document outlines potential improvements, new features, and code cleanup op
 **Estimated Effort:** Large
 
 **Dependencies:** May require a JSON library dependency
-
----
-
-### [Priority: Medium] Add Bounded Counter
-
-**Description:** Implement a bounded counter CRDT that enforces minimum/maximum values while maintaining CRDT semantics. Useful for inventory systems, rate limiting, etc.
-
-**Rationale:** Many real-world use cases require counters with bounds (e.g., stock levels that cannot go negative). A proper bounded counter requires careful design to maintain commutativity.
-
-**Affected Files:**
-- New file: `Convergent/Counter/BoundedCounter.lean`
-- Update `Convergent.lean` to export the new module
-
-**Estimated Effort:** Medium
-
-**Dependencies:** None
-
----
-
-### [Priority: Medium] Add LWWGraph or Add-Remove Graph
-
-**Description:** Implement a graph CRDT supporting vertex and edge operations.
-
-**Rationale:** Graph structures are common in social networks, dependency tracking, and many other domains. A graph CRDT would enable building distributed graph applications.
-
-**Affected Files:**
-- New file: `Convergent/Graph/LWWGraph.lean`
-- New file: `Convergent/Graph/ORGraph.lean`
-- Update `Convergent.lean` to export the new modules
-
-**Estimated Effort:** Large
-
-**Dependencies:** None
 
 ---
 
@@ -148,24 +116,7 @@ This document outlines potential improvements, new features, and code cleanup op
 
 **Estimated Effort:** Large
 
-**Dependencies:** ORMap, LWWRegister
-
----
-
-### [Priority: Low] Add EWFlag (Enable-Wins Flag)
-
-**Description:** Implement an enable-wins flag CRDT where enable operations win over concurrent disable operations.
-
-**Rationale:** Useful for feature flags, permissions, and boolean settings where one direction should win.
-
-**Affected Files:**
-- New file: `Convergent/Flag/EWFlag.lean`
-- New file: `Convergent/Flag/DWFlag.lean` (disable-wins variant)
-- Update `Convergent.lean` to export the new modules
-
-**Estimated Effort:** Small
-
-**Dependencies:** None
+**Dependencies:** ORMap (✓ implemented), LWWRegister (✓ implemented)
 
 ---
 
@@ -381,28 +332,6 @@ let gc := runCRDT GCounter.empty do
 
 ---
 
-### [Priority: Medium] Add Property-Based Tests
-
-**Issue:** Current tests only cover specific scenarios. Property-based tests would verify commutativity, idempotency, and convergence properties.
-
-**Location:**
-- `ConvergentTests/` directory
-
-**Action Required:**
-1. Add dependency on `plausible` or similar property-testing library
-2. Add property tests for:
-   - Commutativity: `apply (apply s op1) op2 = apply (apply s op2) op1` for concurrent ops
-   - Idempotency: `apply (apply s op) op = apply s op`
-   - Merge commutativity: `merge a b = merge b a`
-   - Merge associativity: `merge (merge a b) c = merge a (merge b c)`
-   - Merge idempotency: `merge a a = a`
-
-**Estimated Effort:** Medium
-
-**Dependencies:** Property-testing library (e.g., plausible)
-
----
-
 ### [Priority: Medium] Add VectorClock Equality Fix
 
 **Issue:** `VectorClock.BEq` implementation at line 112-117 of `Timestamp.lean` has a potential issue: it only checks that all keys in both clocks have equal values, but doesn't verify that the key sets are identical. Two clocks could be considered equal even if one has extra zero-valued entries.
@@ -413,27 +342,6 @@ let gc := runCRDT GCounter.empty do
 **Action Required:** Fix the equality check to properly handle zero-valued entries and ensure structural equality.
 
 **Estimated Effort:** Small
-
----
-
-### [Priority: Medium] Add Merge Tests for All CRDTs
-
-**Issue:** Tests cover operations well but merge tests are sparse. Only GCounter has a merge test. Other CRDTs lack merge test coverage.
-
-**Location:**
-- `ConvergentTests/CounterTests.lean` - only GCounter has merge test (line 38-49)
-- `ConvergentTests/RegisterTests.lean` - no merge tests
-- `ConvergentTests/SetTests.lean` - no merge tests
-- `ConvergentTests/MapTests.lean` - no merge tests
-- `ConvergentTests/SequenceTests.lean` - no merge tests
-
-**Action Required:** Add merge tests for all CRDTs covering:
-- Merge with empty
-- Merge with self
-- Merge of divergent states
-- Merge commutativity
-
-**Estimated Effort:** Medium
 
 ---
 
