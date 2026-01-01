@@ -93,6 +93,9 @@ instance : CmRDT (PNMap κ) (PNMapOp κ) where
   apply := apply
   merge := merge
 
+instance : CmRDTQuery (PNMap κ) (PNMapOp κ) (List (κ × Int)) where
+  query := toList
+
 instance [ToString κ] : ToString (PNMap κ) where
   toString m :=
     let pairs := m.toList.map fun (k, v) => s!"{k}: {v}"

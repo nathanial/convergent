@@ -118,6 +118,9 @@ instance : CmRDT (TwoPGraph V) (TwoPGraphOp V) where
   apply := apply
   merge := merge
 
+instance : CmRDTQuery (TwoPGraph V) (TwoPGraphOp V) (List V) where
+  query := getVertices
+
 instance [ToString V] : ToString (TwoPGraph V) where
   toString g :=
     let vs := g.getVertices.map toString

@@ -145,6 +145,9 @@ instance [CmRDT α OpA] : CmRDT (ORMap κ α OpA) (ORMapOp κ α OpA) where
   apply := apply
   merge := merge
 
+instance [CmRDT α OpA] : CmRDTQuery (ORMap κ α OpA) (ORMapOp κ α OpA) (List (κ × α)) where
+  query := toList
+
 instance [ToString κ] [ToString α] : ToString (ORMap κ α OpA) where
   toString m :=
     let pairs := m.toList.map fun (k, v) => s!"{k}: {v}"

@@ -329,6 +329,9 @@ instance : CmRDT (Fugue α) (FugueOp α) where
   apply := apply
   merge := merge
 
+instance : CmRDTQuery (Fugue α) (FugueOp α) (List α) where
+  query := toList
+
 instance [ToString α] : ToString (Fugue α) where
   toString f :=
     let elems := f.toList.map toString

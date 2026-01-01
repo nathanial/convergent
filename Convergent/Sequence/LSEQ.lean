@@ -320,6 +320,9 @@ instance [Ord α] : CmRDT (LSEQ α) (LSEQOp α) where
   apply := apply
   merge := merge
 
+instance [Ord α] : CmRDTQuery (LSEQ α) (LSEQOp α) (List α) where
+  query := toList
+
 instance [ToString α] : ToString (LSEQ α) where
   toString lseq :=
     let elems := lseq.toList.map toString

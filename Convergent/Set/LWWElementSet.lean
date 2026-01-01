@@ -118,6 +118,9 @@ instance : CmRDT (LWWElementSet α) (LWWElementSetOp α) where
   apply := apply
   merge := merge
 
+instance : CmRDTQuery (LWWElementSet α) (LWWElementSetOp α) (List α) where
+  query := toList
+
 instance [ToString α] : ToString (LWWElementSet α) where
   toString set :=
     let elems := set.toList.map toString

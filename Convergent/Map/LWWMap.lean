@@ -136,6 +136,9 @@ instance [Ord α] : CmRDT (LWWMap κ α) (LWWMapOp κ α) where
   apply := apply
   merge := merge
 
+instance [Ord α] : CmRDTQuery (LWWMap κ α) (LWWMapOp κ α) (List (κ × α)) where
+  query := toList
+
 instance [ToString κ] [ToString α] : ToString (LWWMap κ α) where
   toString m :=
     let pairs := m.toList.map fun (k, v) => s!"{k}: {v}"

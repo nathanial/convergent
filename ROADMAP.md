@@ -18,6 +18,7 @@ The following roadmap items have been implemented:
 | ✓ Property-Based Tests | 168 tests covering all CRDT laws with Plausible |
 | ✓ Merge Tests | Covered by property tests (commutativity, associativity, idempotency) |
 | ✓ Binary Serialization | LEB128/ZigZag encoding for all 19 CRDT types with round-trip tests |
+| ✓ CmRDTQuery Instances | All CRDTs now have CmRDTQuery instances for consistent querying |
 
 ---
 
@@ -269,22 +270,6 @@ let gc := runCRDT GCounter.empty do
 
 ## Code Cleanup
 
-### [Priority: High] Add Missing CmRDTQuery Instances
-
-**Issue:** Not all CRDTs have `CmRDTQuery` instances despite having obvious query values.
-
-**Location:**
-- `Convergent/Set/GSet.lean` - missing `CmRDTQuery` (could query `toList`)
-- `Convergent/Set/TwoPSet.lean` - missing `CmRDTQuery` (could query `toList`)
-- `Convergent/Set/ORSet.lean` - missing `CmRDTQuery` (could query `toList`)
-- `Convergent/Sequence/RGA.lean` - missing `CmRDTQuery` (could query `toList`)
-
-**Action Required:** Add `CmRDTQuery` instances to all CRDTs for consistency.
-
-**Estimated Effort:** Small
-
----
-
 ### [Priority: High] Add Comprehensive Documentation
 
 **Issue:** While top-level module comments exist, many functions lack documentation. The library would benefit from more examples and explanation of edge cases.
@@ -324,19 +309,6 @@ let gc := runCRDT GCounter.empty do
 - `README.md` (lines 62, 69, 89: uses `mk`)
 
 **Action Required:** Either update code to use `.mk` or update README to use `.new` for consistency.
-
-**Estimated Effort:** Small
-
----
-
-### [Priority: Medium] Add VectorClock Equality Fix
-
-**Issue:** `VectorClock.BEq` implementation at line 112-117 of `Timestamp.lean` has a potential issue: it only checks that all keys in both clocks have equal values, but doesn't verify that the key sets are identical. Two clocks could be considered equal even if one has extra zero-valued entries.
-
-**Location:**
-- `Convergent/Core/Timestamp.lean` (lines 112-117)
-
-**Action Required:** Fix the equality check to properly handle zero-valued entries and ensure structural equality.
 
 **Estimated Effort:** Small
 
