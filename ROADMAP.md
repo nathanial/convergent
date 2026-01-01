@@ -19,6 +19,7 @@ The following roadmap items have been implemented:
 | ✓ Merge Tests | Covered by property tests (commutativity, associativity, idempotency) |
 | ✓ Binary Serialization | LEB128/ZigZag encoding for all 19 CRDT types with round-trip tests |
 | ✓ CmRDTQuery Instances | All CRDTs now have CmRDTQuery instances for consistent querying |
+| ✓ Monadic Interface | StateM-based CRDTM monad with runCRDT and per-CRDT helpers (incM, addM, etc.) |
 
 ---
 
@@ -171,32 +172,6 @@ The following roadmap items have been implemented:
 - Potentially create new file: `Convergent/Core/Ordering.lean`
 
 **Estimated Effort:** Small
-
----
-
-### [Priority: Medium] Add Monadic Interface for Operations
-
-**Current State:** Applying operations requires manual threading of state:
-```lean
-let gc := GCounter.empty
-  |> fun s => GCounter.apply s (GCounter.increment r1)
-  |> fun s => GCounter.apply s (GCounter.increment r1)
-```
-
-**Proposed Change:** Add a `StateT`-based or custom monad for cleaner operation chaining:
-```lean
-let gc := runCRDT GCounter.empty do
-  increment r1
-  increment r1
-```
-
-**Benefits:** More ergonomic API, cleaner user code.
-
-**Affected Files:**
-- New file: `Convergent/Core/Monad.lean`
-- Updates to all CRDT modules to add monadic helpers
-
-**Estimated Effort:** Medium
 
 ---
 
