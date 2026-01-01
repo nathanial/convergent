@@ -21,10 +21,10 @@ structure PNCounter where
   negative : GCounter
   deriving Repr, Inhabited
 
-/-- Operation: increment or decrement -/
+/-- Operation: increment or decrement by a given amount -/
 inductive PNCounterOp where
-  | increment (replica : ReplicaId)
-  | decrement (replica : ReplicaId)
+  | increment (replica : ReplicaId) (amount : Nat := 1)
+  | decrement (replica : ReplicaId) (amount : Nat := 1)
   deriving BEq, Repr, Inhabited
 
 namespace PNCounter
@@ -40,18 +40,26 @@ def value (pn : PNCounter) : Int :=
 /-- Apply an operation -/
 def apply (pn : PNCounter) (op : PNCounterOp) : PNCounter :=
   match op with
-  | .increment replica =>
-    { pn with positive := pn.positive.apply (GCounter.increment replica) }
-  | .decrement replica =>
-    { pn with negative := pn.negative.apply (GCounter.increment replica) }
+  | .increment replica amount =>
+    { pn with positive := pn.positive.apply (GCounter.incrementBy replica amount) }
+  | .decrement replica amount =>
+    { pn with negative := pn.negative.apply (GCounter.incrementBy replica amount) }
 
-/-- Create an increment operation -/
+/-- Create an increment operation (by 1) -/
 def increment (replica : ReplicaId) : PNCounterOp :=
-  .increment replica
+  .increment replica 1
 
-/-- Create a decrement operation -/
+/-- Create an increment-by-N operation -/
+def incrementBy (replica : ReplicaId) (n : Nat) : PNCounterOp :=
+  .increment replica n
+
+/-- Create a decrement operation (by 1) -/
 def decrement (replica : ReplicaId) : PNCounterOp :=
-  .decrement replica
+  .decrement replica 1
+
+/-- Create a decrement-by-N operation -/
+def decrementBy (replica : ReplicaId) (n : Nat) : PNCounterOp :=
+  .decrement replica n
 
 /-- Merge two PNCounters -/
 def merge (a b : PNCounter) : PNCounter :=

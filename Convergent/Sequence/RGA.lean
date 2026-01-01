@@ -192,6 +192,9 @@ instance [Ord α] : CmRDT (RGA α) (RGAOp α) where
   apply := apply
   merge := merge
 
+instance [Ord α] : CmRDTQuery (RGA α) (RGAOp α) (List α) where
+  query := toList
+
 instance [ToString α] : ToString (RGA α) where
   toString rga :=
     let elems := rga.toList.map toString

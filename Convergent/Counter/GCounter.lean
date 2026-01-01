@@ -21,9 +21,10 @@ structure GCounter where
   counts : Std.HashMap ReplicaId Nat
   deriving Repr, Inhabited
 
-/-- Operation: increment a specific replica's count -/
+/-- Operation: increment a specific replica's count by a given amount -/
 structure GCounterOp where
   replica : ReplicaId
+  amount : Nat := 1
   deriving BEq, Repr, Inhabited
 
 namespace GCounter
@@ -41,11 +42,15 @@ def value (gc : GCounter) : Nat :=
 
 /-- Apply an increment operation -/
 def apply (gc : GCounter) (op : GCounterOp) : GCounter :=
-  { counts := gc.counts.insert op.replica (gc.getCount op.replica + 1) }
+  { counts := gc.counts.insert op.replica (gc.getCount op.replica + op.amount) }
 
-/-- Create an increment operation for a replica -/
+/-- Create an increment operation for a replica (increment by 1) -/
 def increment (replica : ReplicaId) : GCounterOp :=
-  { replica }
+  { replica, amount := 1 }
+
+/-- Create an increment-by-N operation for a replica -/
+def incrementBy (replica : ReplicaId) (n : Nat) : GCounterOp :=
+  { replica, amount := n }
 
 /-- Merge two GCounters (state-based merge for recovery/sync) -/
 def merge (a b : GCounter) : GCounter :=

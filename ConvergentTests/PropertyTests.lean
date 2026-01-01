@@ -36,12 +36,12 @@ def mvRegisterEq [BEq α] (a b : MVRegister α) : Bool :=
   aVals.all fun v => bVals.any (· == v)
 
 /-- Compare GSets by elements (order-independent) -/
-def gsetEq [BEq α] (a b : GSet α) : Bool :=
-  a.elements.length == b.elements.length &&
-  a.elements.all fun e => b.contains e
+def gsetEq [BEq α] [Hashable α] (a b : GSet α) : Bool :=
+  a.size == b.size &&
+  a.toList.all fun e => b.contains e
 
 /-- Compare TwoPSets by visible elements -/
-def twopsetEq [BEq α] (a b : TwoPSet α) : Bool :=
+def twopsetEq [BEq α] [Hashable α] (a b : TwoPSet α) : Bool :=
   let aList := a.toList
   let bList := b.toList
   aList.length == bList.length &&
@@ -107,7 +107,7 @@ def fugueEq [BEq α] (a b : Fugue α) : Bool :=
   a.toList == b.toList
 
 /-- Compare TwoPGraphs by vertices and edges -/
-def twopgraphEq [BEq V] (a b : TwoPGraph V) : Bool :=
+def twopgraphEq [BEq V] [Hashable V] (a b : TwoPGraph V) : Bool :=
   let aVerts := a.getVertices
   let bVerts := b.getVertices
   let aEdges := a.getEdges
@@ -127,12 +127,12 @@ def genSmallNat (n : Nat) : Gen Nat := do
 /-! ## Repr Instances for Operations -/
 
 instance : Repr GCounterOp where
-  reprPrec op _ := s!"GCounterOp({op.replica})"
+  reprPrec op _ := s!"GCounterOp({op.replica}, {op.amount})"
 
 instance : Repr PNCounterOp where
   reprPrec op _ := match op with
-    | .increment r => s!"PNCounterOp.increment({r})"
-    | .decrement r => s!"PNCounterOp.decrement({r})"
+    | .increment r n => s!"PNCounterOp.increment({r}, {n})"
+    | .decrement r n => s!"PNCounterOp.decrement({r}, {n})"
 
 instance [Repr α] : Repr (GSetOp α) where
   reprPrec op _ := s!"GSetOp({repr op.value})"
@@ -233,13 +233,13 @@ instance : Shrinkable (MVRegister α) where
 instance [Repr α] : Shrinkable (MVRegisterOp α) where
   shrink _ := []
 
-instance [BEq α] : Shrinkable (GSet α) where
+instance [BEq α] [Hashable α] : Shrinkable (GSet α) where
   shrink _ := [GSet.empty]
 
 instance : Shrinkable (GSetOp α) where
   shrink _ := []
 
-instance [BEq α] : Shrinkable (TwoPSet α) where
+instance [BEq α] [Hashable α] : Shrinkable (TwoPSet α) where
   shrink _ := [TwoPSet.empty]
 
 instance : Shrinkable (TwoPSetOp α) where
@@ -320,7 +320,7 @@ instance : Shrinkable (Fugue α) where
 instance : Shrinkable (FugueOp α) where
   shrink _ := []
 
-instance [BEq V] : Shrinkable (TwoPGraph V) where
+instance [BEq V] [Hashable V] : Shrinkable (TwoPGraph V) where
   shrink _ := [TwoPGraph.empty]
 
 instance : Shrinkable (TwoPGraphOp V) where
@@ -368,7 +368,8 @@ instance : Arbitrary GCounter where
 instance : Arbitrary GCounterOp where
   arbitrary := do
     let replica ← Arbitrary.arbitrary
-    return { replica }
+    let amount ← genSmallNat 5
+    return { replica, amount := amount + 1 }
 
 instance : Arbitrary PNCounter where
   arbitrary := do
@@ -384,8 +385,9 @@ instance : Arbitrary PNCounter where
 instance : Arbitrary PNCounterOp where
   arbitrary := do
     let replica ← Arbitrary.arbitrary
+    let amount ← genSmallNat 5
     let isInc ← genSmallNat 1
-    return if isInc == 0 then .increment replica else .decrement replica
+    return if isInc == 0 then .increment replica (amount + 1) else .decrement replica (amount + 1)
 
 /-! ## Arbitrary Instances for Register Types -/
 

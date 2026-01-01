@@ -20,7 +20,7 @@ import Convergent.Set.GSet
 namespace Convergent
 
 /-- State: pair of GSets (added, removed) -/
-structure TwoPSet (α : Type) [BEq α] where
+structure TwoPSet (α : Type) [BEq α] [Hashable α] where
   added : GSet α
   removed : GSet α
   deriving Repr, Inhabited
@@ -33,7 +33,7 @@ inductive TwoPSetOp (α : Type) where
 
 namespace TwoPSet
 
-variable {α : Type} [BEq α]
+variable {α : Type} [BEq α] [Hashable α]
 
 /-- Empty set -/
 def empty : TwoPSet α :=
@@ -72,6 +72,9 @@ instance : CmRDT (TwoPSet α) (TwoPSetOp α) where
   empty := empty
   apply := apply
   merge := merge
+
+instance : CmRDTQuery (TwoPSet α) (TwoPSetOp α) (List α) where
+  query := toList
 
 instance [ToString α] : ToString (TwoPSet α) where
   toString tps :=

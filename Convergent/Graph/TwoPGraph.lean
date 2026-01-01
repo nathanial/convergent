@@ -22,7 +22,7 @@ import Convergent.Set.TwoPSet
 namespace Convergent
 
 /-- Two-phase graph: vertices and edges are both TwoPSets -/
-structure TwoPGraph (V : Type) [BEq V] where
+structure TwoPGraph (V : Type) [BEq V] [Hashable V] where
   vertices : TwoPSet V
   edges : TwoPSet (V × V)
   deriving Repr, Inhabited
@@ -37,7 +37,7 @@ inductive TwoPGraphOp (V : Type) where
 
 namespace TwoPGraph
 
-variable {V : Type} [BEq V]
+variable {V : Type} [BEq V] [Hashable V]
 
 /-- Empty graph -/
 def empty : TwoPGraph V :=

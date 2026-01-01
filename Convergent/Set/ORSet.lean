@@ -98,6 +98,9 @@ instance : CmRDT (ORSet α) (ORSetOp α) where
   apply := apply
   merge := merge
 
+instance : CmRDTQuery (ORSet α) (ORSetOp α) (List α) where
+  query := toList
+
 instance [ToString α] : ToString (ORSet α) where
   toString os :=
     let elems := os.toList.map toString
