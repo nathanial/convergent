@@ -637,6 +637,377 @@ test "multiple features independently managed" := do
   (flags.contains "feature_a") ≡ false  -- removed at later time
   (flags.contains "feature_b") ≡ true   -- still enabled
 
+/-! ## Document Viewers with GSet
+
+Track who has viewed a document. GSet is grow-only, perfect for
+recording events that can never be "unread" or undone.
+-/
+
+testSuite "Document Viewers (GSet)"
+
+test "viewers from different servers are combined" := do
+  -- Each server tracks who viewed the document
+  let usServer := GSet.empty
+    |> fun s => GSet.apply s (GSet.add "alice@example.com")
+    |> fun s => GSet.apply s (GSet.add "bob@example.com")
+
+  let euServer := GSet.empty
+    |> fun s => GSet.apply s (GSet.add "carol@example.com")
+    |> fun s => GSet.apply s (GSet.add "dave@example.com")
+
+  -- Sync: all viewers combined
+  let synced := GSet.merge usServer euServer
+
+  (synced.contains "alice@example.com") ≡ true
+  (synced.contains "bob@example.com") ≡ true
+  (synced.contains "carol@example.com") ≡ true
+  (synced.contains "dave@example.com") ≡ true
+  (synced.size) ≡ 4
+
+test "duplicate views are idempotent" := do
+  -- Alice views the document multiple times from different devices
+  let viewers := GSet.empty
+    |> fun s => GSet.apply s (GSet.add "alice@example.com")
+    |> fun s => GSet.apply s (GSet.add "alice@example.com")  -- duplicate
+    |> fun s => GSet.apply s (GSet.add "alice@example.com")  -- duplicate
+
+  (viewers.size) ≡ 1
+  (viewers.contains "alice@example.com") ≡ true
+
+test "once viewed, always viewed - cannot be unread" := do
+  -- GSet has no remove operation - this is intentional
+  -- Once someone views a document, that view is permanent
+  let viewers := GSet.empty
+    |> fun s => GSet.apply s (GSet.add "alice@example.com")
+
+  -- There's no way to remove Alice from viewers - perfect for audit logs
+  (viewers.contains "alice@example.com") ≡ true
+
+/-! ## Redeemable Coupons with TwoPSet
+
+One-time coupon codes that can be redeemed once and never re-added.
+TwoPSet's two-phase semantics are perfect for this use case.
+-/
+
+testSuite "Redeemable Coupons (TwoPSet)"
+
+test "coupon can be redeemed once" := do
+  -- Start with available coupons
+  let coupons := TwoPSet.empty
+    |> fun s => TwoPSet.apply s (TwoPSet.add "SAVE20")
+    |> fun s => TwoPSet.apply s (TwoPSet.add "FREESHIP")
+
+  (coupons.contains "SAVE20") ≡ true
+  (coupons.contains "FREESHIP") ≡ true
+
+  -- Customer redeems SAVE20
+  let afterRedeem := TwoPSet.apply coupons (TwoPSet.remove "SAVE20")
+
+  (afterRedeem.contains "SAVE20") ≡ false  -- Redeemed!
+  (afterRedeem.contains "FREESHIP") ≡ true  -- Still available
+
+test "redeemed coupon cannot be re-added" := do
+  -- Add and redeem a coupon
+  let coupons := TwoPSet.empty
+    |> fun s => TwoPSet.apply s (TwoPSet.add "SAVE20")
+    |> fun s => TwoPSet.apply s (TwoPSet.remove "SAVE20")
+
+  (coupons.contains "SAVE20") ≡ false
+
+  -- Try to add it again - fails due to two-phase semantics
+  let tryAgain := TwoPSet.apply coupons (TwoPSet.add "SAVE20")
+
+  (tryAgain.contains "SAVE20") ≡ false  -- Still gone!
+
+test "concurrent redemption from different servers" := do
+  -- Both servers have the coupon
+  let initial := TwoPSet.apply TwoPSet.empty (TwoPSet.add "SAVE20")
+
+  -- Server 1: customer redeems
+  let server1 := TwoPSet.apply initial (TwoPSet.remove "SAVE20")
+
+  -- Server 2: doesn't know about redemption yet
+  let server2 := initial
+
+  -- Sync: remove wins (two-phase)
+  let merged := TwoPSet.merge server1 server2
+
+  (merged.contains "SAVE20") ≡ false
+
+/-! ## User Profile with LWWRegister
+
+User profile fields that can be updated from multiple devices.
+LWWRegister uses timestamps to determine which update wins.
+-/
+
+testSuite "User Profile (LWWRegister)"
+
+test "latest profile update wins" := do
+  let phone : ReplicaId := 1
+  let laptop : ReplicaId := 2
+
+  -- User updates name on phone at time 1
+  let ts1 := LamportTs.new 1 phone
+  let phoneProfile := LWWRegister.apply LWWRegister.empty (LWWRegister.set "Alice" ts1)
+
+  -- User updates name on laptop at time 2 (later)
+  let ts2 := LamportTs.new 2 laptop
+  let laptopProfile := LWWRegister.apply LWWRegister.empty (LWWRegister.set "Alice Smith" ts2)
+
+  -- Sync: later timestamp wins
+  let merged := LWWRegister.merge phoneProfile laptopProfile
+
+  (merged.get) ≡ some "Alice Smith"
+
+test "concurrent updates resolved by timestamp" := do
+  let server1 : ReplicaId := 1
+  let server2 : ReplicaId := 2
+
+  -- Same logical time but different servers
+  let ts1 := LamportTs.new 5 server1
+  let ts2 := LamportTs.new 5 server2
+
+  let profile1 := LWWRegister.apply LWWRegister.empty (LWWRegister.set "Draft Bio" ts1)
+  let profile2 := LWWRegister.apply LWWRegister.empty (LWWRegister.set "Final Bio" ts2)
+
+  -- Merge is deterministic (tie-breaker uses value comparison)
+  let merged := LWWRegister.merge profile1 profile2
+
+  -- One of them wins deterministically
+  (merged.get.isSome) ≡ true
+
+test "empty register has no value" := do
+  let reg : LWWRegister String := LWWRegister.empty
+
+  (reg.get) ≡ none
+
+/-! ## Per-Channel Message Counts with ORMap
+
+Track message counts per channel using ORMap with nested PNCounters.
+ORMap allows adding/removing channels, and nested CRDTs are merged.
+-/
+
+testSuite "Per-Channel Message Counts (ORMap)"
+
+test "add channels with initial counters" := do
+  let server1 : ReplicaId := 1
+  let tag1 := UniqueId.new server1 0
+  let tag2 := UniqueId.new server1 1
+
+  -- Create channels with empty counters
+  let channels : ORMap String PNCounter PNCounterOp := ORMap.empty
+    |> fun m => ORMap.apply m (ORMap.put "general" PNCounter.empty tag1)
+    |> fun m => ORMap.apply m (ORMap.put "random" PNCounter.empty tag2)
+
+  (channels.contains "general") ≡ true
+  (channels.contains "random") ≡ true
+  (channels.size) ≡ 2
+
+test "increment message count in channel" := do
+  let server1 : ReplicaId := 1
+  let tag1 := UniqueId.new server1 0
+
+  -- Create channel with counter
+  let channels : ORMap String PNCounter PNCounterOp := ORMap.empty
+    |> fun m => ORMap.apply m (ORMap.put "general" PNCounter.empty tag1)
+
+  -- Increment message count (nested operation)
+  let channels' := ORMap.apply channels (ORMap.update "general" tag1 (PNCounter.increment server1))
+  let channels'' := ORMap.apply channels' (ORMap.update "general" tag1 (PNCounter.increment server1))
+
+  -- Check the nested counter value
+  match (channels''.get "general").head? with
+  | some counter => (counter.value) ≡ 2
+  | none => (false) ≡ true
+
+test "delete channel removes it" := do
+  let server1 : ReplicaId := 1
+  let tag1 := UniqueId.new server1 0
+
+  let channels : ORMap String PNCounter PNCounterOp := ORMap.empty
+    |> fun m => ORMap.apply m (ORMap.put "general" PNCounter.empty tag1)
+
+  (channels.contains "general") ≡ true
+
+  -- Delete the channel
+  let deleteOp := ORMap.delete channels "general"
+  let channels' := ORMap.apply channels deleteOp
+
+  (channels'.contains "general") ≡ false
+
+/-! ## Collaborative Task List with RGA
+
+Shared task list where multiple users can add tasks concurrently.
+RGA maintains order and handles concurrent insertions.
+-/
+
+testSuite "Collaborative Task List (RGA)"
+
+test "add tasks in sequence" := do
+  let user : ReplicaId := 1
+
+  -- Add tasks one after another
+  let id1 := UniqueId.new user 0
+  let id2 := UniqueId.new user 1
+  let id3 := UniqueId.new user 2
+
+  let tasks := RGA.empty
+    |> fun r => RGA.apply r (RGA.insert none "Buy groceries" id1)
+    |> fun r => RGA.apply r (RGA.insert (some id1) "Walk the dog" id2)
+    |> fun r => RGA.apply r (RGA.insert (some id2) "Call mom" id3)
+
+  (tasks.toList) ≡ ["Buy groceries", "Walk the dog", "Call mom"]
+  (tasks.length) ≡ 3
+
+test "concurrent task additions at same position" := do
+  let alice : ReplicaId := 1
+  let bob : ReplicaId := 2
+
+  -- Both start with one task
+  let id0 := UniqueId.new alice 0
+  let initial := RGA.apply RGA.empty (RGA.insert none "Shared task" id0)
+
+  -- Alice adds "Alice's task" after the shared task
+  let aliceId := UniqueId.new alice 1
+  let aliceList := RGA.apply initial (RGA.insert (some id0) "Alice's task" aliceId)
+
+  -- Bob adds "Bob's task" after the shared task (concurrent)
+  let bobId := UniqueId.new bob 1
+  let bobList := RGA.apply initial (RGA.insert (some id0) "Bob's task" bobId)
+
+  -- Merge: both tasks appear, deterministically ordered
+  let merged := RGA.merge aliceList bobList
+
+  (merged.length) ≡ 3
+  (merged.toList.contains "Shared task") ≡ true
+  (merged.toList.contains "Alice's task") ≡ true
+  (merged.toList.contains "Bob's task") ≡ true
+
+test "complete task (delete)" := do
+  let user : ReplicaId := 1
+
+  let id1 := UniqueId.new user 0
+  let id2 := UniqueId.new user 1
+
+  let tasks := RGA.empty
+    |> fun r => RGA.apply r (RGA.insert none "Buy groceries" id1)
+    |> fun r => RGA.apply r (RGA.insert (some id1) "Walk the dog" id2)
+
+  (tasks.toList) ≡ ["Buy groceries", "Walk the dog"]
+
+  -- Complete first task
+  let tasks' := RGA.apply tasks (RGA.delete id1)
+
+  (tasks'.toList) ≡ ["Walk the dog"]
+
+/-! ## Priority Queue with LSEQ
+
+Position-based sequence for maintaining ordered items.
+LSEQ uses dense position identifiers for efficient concurrent edits.
+-/
+
+testSuite "Priority Queue (LSEQ)"
+
+test "insert items in order" := do
+  let user : ReplicaId := 1
+
+  -- Insert items at positions 0, 1, 2
+  let (_, queue) := LSEQ.insertAt LSEQ.empty user 0 "High priority"
+  let (_, queue) := LSEQ.insertAt queue user 1 "Medium priority"
+  let (_, queue) := LSEQ.insertAt queue user 2 "Low priority"
+
+  (queue.toList) ≡ ["High priority", "Medium priority", "Low priority"]
+  (queue.length) ≡ 3
+
+test "insert at beginning" := do
+  let user : ReplicaId := 1
+
+  -- Start with one item
+  let (_, queue) := LSEQ.insertAt LSEQ.empty user 0 "First"
+
+  -- Insert at beginning (index 0)
+  let (_, queue) := LSEQ.insertAt queue user 0 "Now first"
+
+  (queue.toList) ≡ ["Now first", "First"]
+
+test "delete from middle" := do
+  let user : ReplicaId := 1
+
+  let (_, queue) := LSEQ.insertAt LSEQ.empty user 0 "A"
+  let (_, queue) := LSEQ.insertAt queue user 1 "B"
+  let (_, queue) := LSEQ.insertAt queue user 2 "C"
+
+  (queue.toList) ≡ ["A", "B", "C"]
+
+  -- Delete "B" (index 1)
+  match LSEQ.deleteAt queue 1 with
+  | some deleteOp =>
+    let queue' := LSEQ.apply queue deleteOp
+    (queue'.toList) ≡ ["A", "C"]
+  | none =>
+    (false) ≡ true
+
+/-! ## Emergency Stop with DWFlag
+
+Safety-critical kill switch where disable-wins ensures the system
+stays stopped once any node triggers the emergency stop.
+-/
+
+testSuite "Emergency Stop (DWFlag)"
+
+test "emergency stop stays off once triggered" := do
+  let sensor1 : ReplicaId := 1
+  let sensor2 : ReplicaId := 2
+
+  -- System is running (enabled)
+  let running := DWFlag.apply DWFlag.empty (DWFlag.enable sensor1)
+
+  (running.value) ≡ true
+
+  -- Sensor 2 triggers emergency stop
+  let stopped := DWFlag.apply running (DWFlag.disable sensor2)
+
+  -- Disable-wins: system stays stopped
+  (stopped.value) ≡ false
+
+  -- Even if sensor 1 tries to re-enable
+  let stillStopped := DWFlag.apply stopped (DWFlag.enable sensor1)
+
+  (stillStopped.value) ≡ false
+
+test "concurrent enable and disable - disable wins" := do
+  let node1 : ReplicaId := 1
+  let node2 : ReplicaId := 2
+
+  -- Node 1 enables
+  let enabled := DWFlag.apply DWFlag.empty (DWFlag.enable node1)
+
+  -- Node 2 disables (concurrent)
+  let disabled := DWFlag.apply DWFlag.empty (DWFlag.disable node2)
+
+  -- Merge: disable wins
+  let merged := DWFlag.merge enabled disabled
+
+  (merged.value) ≡ false
+
+test "contrast with EWFlag - different semantics" := do
+  let node1 : ReplicaId := 1
+  let node2 : ReplicaId := 2
+
+  -- DWFlag: disable-wins (safety-critical, conservative)
+  let dwEnabled := DWFlag.apply DWFlag.empty (DWFlag.enable node1)
+  let dwDisabled := DWFlag.apply DWFlag.empty (DWFlag.disable node2)
+  let dwMerged := DWFlag.merge dwEnabled dwDisabled
+
+  -- EWFlag: enable-wins (availability-focused)
+  let ewEnabled := EWFlag.apply EWFlag.empty (EWFlag.enable node1)
+  let ewDisabled := EWFlag.apply EWFlag.empty (EWFlag.disable node2)
+  let ewMerged := EWFlag.merge ewEnabled ewDisabled
+
+  -- Same operations, opposite results!
+  (dwMerged.value) ≡ false  -- DWFlag: disable wins
+  (ewMerged.value) ≡ true   -- EWFlag: enable wins
+
 #generate_tests
 
 end ConvergentTests.ScenarioTests
