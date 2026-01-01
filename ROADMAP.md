@@ -292,11 +292,14 @@ let gc := runCRDT GCounter.empty do
 - No doc comments on private helper functions
 
 **Partial Progress:**
-- ✓ Added `ScenarioTests.lean` with 24 real-world usage examples covering:
+- ✓ Added `ScenarioTests.lean` with 46 real-world usage examples covering all 17 CRDTs:
   - Shopping cart (ORSet), Like button (GCounter), User presence (EWFlag)
   - Leaderboard (LWWMap), Social network (TwoPGraph), Inventory (PNMap)
   - Collaborative text editing (Fugue), Conflict resolution (MVRegister)
-  - Feature flags (LWWElementSet)
+  - Feature flags (LWWElementSet), Document viewers (GSet)
+  - Redeemable coupons (TwoPSet), User profile (LWWRegister)
+  - Per-channel message counts (ORMap), Task list (RGA)
+  - Priority queue (LSEQ), Emergency stop (DWFlag)
 
 **Action Required:**
 1. Add doc comments to all public functions explaining parameters and behavior
