@@ -17,6 +17,7 @@ The following roadmap items have been implemented:
 | ✓ Fugue | Tree-based text CRDT with maximal non-interleaving |
 | ✓ Property-Based Tests | 168 tests covering all CRDT laws with Plausible |
 | ✓ Merge Tests | Covered by property tests (commutativity, associativity, idempotency) |
+| ✓ Binary Serialization | LEB128/ZigZag encoding for all 19 CRDT types with round-trip tests |
 
 ---
 
@@ -40,20 +41,21 @@ The following roadmap items have been implemented:
 
 ---
 
-### [Priority: High] Add Serialization Support
+### [Priority: Medium] Add JSON Serialization
 
-**Description:** Add JSON and binary serialization for all CRDT types to enable network transmission and persistence.
+**Description:** Add JSON serialization for all CRDT types to complement the existing binary serialization.
 
-**Rationale:** For practical use in distributed systems, CRDTs need to be serialized for network transmission and storage. Currently there is no serialization support.
+**Rationale:** JSON is human-readable and widely used for debugging, APIs, and interoperability with other systems. Binary serialization is already complete for efficient network transmission.
 
 **Affected Files:**
 - New file: `Convergent/Serialization/Json.lean`
-- New file: `Convergent/Serialization/Binary.lean`
-- Updates to all CRDT types to derive or implement serialization
+- Update `Convergent/Serialization.lean` to export JSON module
 
-**Estimated Effort:** Large
+**Estimated Effort:** Medium
 
 **Dependencies:** May require a JSON library dependency
+
+**Note:** Binary serialization is complete in `Convergent/Serialization/Binary.lean` with LEB128 variable-length encoding for Nat, ZigZag encoding for Int, and instances for all 19 CRDT types.
 
 ---
 
