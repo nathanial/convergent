@@ -5,6 +5,7 @@ import ConvergentTests.SetTests
 import ConvergentTests.MapTests
 import ConvergentTests.SequenceTests
 import ConvergentTests.FlagTests
+import ConvergentTests.GraphTests
 import ConvergentTests.PropertyTests
 
 open Crucible

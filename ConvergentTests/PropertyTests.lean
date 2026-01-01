@@ -102,6 +102,17 @@ def pnmapEq [BEq κ] [Hashable κ] (a b : PNMap κ) : Bool :=
 def lseqEq [BEq α] (a b : LSEQ α) : Bool :=
   a.toList == b.toList
 
+/-- Compare TwoPGraphs by vertices and edges -/
+def twopgraphEq [BEq V] (a b : TwoPGraph V) : Bool :=
+  let aVerts := a.getVertices
+  let bVerts := b.getVertices
+  let aEdges := a.getEdges
+  let bEdges := b.getEdges
+  aVerts.length == bVerts.length &&
+  aVerts.all (fun v => b.containsVertex v) &&
+  aEdges.length == bEdges.length &&
+  aEdges.all (fun e => b.containsEdge e.1 e.2)
+
 /-! ## Random Generators -/
 
 /-- Generate a small Nat in range [0, n] -/
@@ -172,6 +183,13 @@ instance [Repr α] : Repr (LSEQOp α) where
   reprPrec op _ := match op with
     | .insert id v => s!"LSEQOp.insert({repr id}, {repr v})"
     | .delete id => s!"LSEQOp.delete({repr id})"
+
+instance [Repr V] : Repr (TwoPGraphOp V) where
+  reprPrec op _ := match op with
+    | .addVertex v => s!"TwoPGraphOp.addVertex({repr v})"
+    | .removeVertex v => s!"TwoPGraphOp.removeVertex({repr v})"
+    | .addEdge a b => s!"TwoPGraphOp.addEdge({repr a}, {repr b})"
+    | .removeEdge a b => s!"TwoPGraphOp.removeEdge({repr a}, {repr b})"
 
 /-! ## Shrinkable Instances -/
 
@@ -281,6 +299,12 @@ instance : Shrinkable (LSEQ α) where
   shrink _ := [LSEQ.empty]
 
 instance : Shrinkable (LSEQOp α) where
+  shrink _ := []
+
+instance [BEq V] : Shrinkable (TwoPGraph V) where
+  shrink _ := [TwoPGraph.empty]
+
+instance : Shrinkable (TwoPGraphOp V) where
   shrink _ := []
 
 /-! ## Arbitrary Instances for Core Types -/
@@ -615,6 +639,41 @@ instance : Arbitrary (LSEQOp Nat) where
     else
       return .delete id
 
+/-! ## Arbitrary Instances for TwoPGraph -/
+
+instance : Arbitrary (TwoPGraph Nat) where
+  arbitrary := do
+    let numVertices ← genSmallNat 4
+    let numEdges ← genSmallNat 3
+    let mut g := TwoPGraph.empty
+    -- Add vertices
+    for _ in [0:numVertices] do
+      let v ← genSmallNat 10
+      let shouldRemove ← genSmallNat 3
+      g := TwoPGraph.apply g (TwoPGraph.addVertex v)
+      if shouldRemove == 0 then
+        g := TwoPGraph.apply g (TwoPGraph.removeVertex v)
+    -- Add edges
+    for _ in [0:numEdges] do
+      let a ← genSmallNat 10
+      let b ← genSmallNat 10
+      let shouldRemove ← genSmallNat 3
+      g := TwoPGraph.apply g (TwoPGraph.addEdge a b)
+      if shouldRemove == 0 then
+        g := TwoPGraph.apply g (TwoPGraph.removeEdge a b)
+    return g
+
+instance : Arbitrary (TwoPGraphOp Nat) where
+  arbitrary := do
+    let v ← genSmallNat 10
+    let w ← genSmallNat 10
+    let opType ← genSmallNat 3
+    match opType with
+    | 0 => return .addVertex v
+    | 1 => return .removeVertex v
+    | 2 => return .addEdge v w
+    | _ => return .removeEdge v w
+
 /-! ## Property Tests: Merge Laws -/
 
 -- GCounter Merge Laws
@@ -722,6 +781,13 @@ instance : Arbitrary (LSEQOp Nat) where
          (LSEQ.merge a (LSEQ.merge b c))
 #test ∀ (a : LSEQ Nat), lseqEq (LSEQ.merge a a) a
 
+-- TwoPGraph Merge Laws
+#test ∀ (a b : TwoPGraph Nat), twopgraphEq (TwoPGraph.merge a b) (TwoPGraph.merge b a)
+#test ∀ (a b c : TwoPGraph Nat),
+  twopgraphEq (TwoPGraph.merge (TwoPGraph.merge a b) c)
+              (TwoPGraph.merge a (TwoPGraph.merge b c))
+#test ∀ (a : TwoPGraph Nat), twopgraphEq (TwoPGraph.merge a a) a
+
 /-! ## Property Tests: Apply Commutativity -/
 
 -- GCounter apply commutes
@@ -798,6 +864,11 @@ instance : Arbitrary (LSEQOp Nat) where
 #test ∀ (s : LSEQ Nat) (op1 op2 : LSEQOp Nat),
   lseqEq (LSEQ.apply (LSEQ.apply s op1) op2)
          (LSEQ.apply (LSEQ.apply s op2) op1)
+
+-- TwoPGraph apply commutes
+#test ∀ (s : TwoPGraph Nat) (op1 op2 : TwoPGraphOp Nat),
+  twopgraphEq (TwoPGraph.apply (TwoPGraph.apply s op1) op2)
+              (TwoPGraph.apply (TwoPGraph.apply s op2) op1)
 
 /-! ## Property Tests: Apply Idempotency -/
 
@@ -907,6 +978,26 @@ instance : Arbitrary (LSEQOp Nat) where
 #test ∀ (lseq : LSEQ Nat) (id : LSEQId),
   let lseq' := LSEQ.apply lseq (LSEQ.delete id)
   lseqEq (LSEQ.apply lseq' (LSEQ.delete id)) lseq'
+
+-- TwoPGraph addVertex is idempotent
+#test ∀ (g : TwoPGraph Nat) (v : Nat),
+  let g' := TwoPGraph.apply g (TwoPGraph.addVertex v)
+  twopgraphEq (TwoPGraph.apply g' (TwoPGraph.addVertex v)) g'
+
+-- TwoPGraph removeVertex is idempotent
+#test ∀ (g : TwoPGraph Nat) (v : Nat),
+  let g' := TwoPGraph.apply g (TwoPGraph.removeVertex v)
+  twopgraphEq (TwoPGraph.apply g' (TwoPGraph.removeVertex v)) g'
+
+-- TwoPGraph addEdge is idempotent
+#test ∀ (g : TwoPGraph Nat) (a b : Nat),
+  let g' := TwoPGraph.apply g (TwoPGraph.addEdge a b)
+  twopgraphEq (TwoPGraph.apply g' (TwoPGraph.addEdge a b)) g'
+
+-- TwoPGraph removeEdge is idempotent
+#test ∀ (g : TwoPGraph Nat) (a b : Nat),
+  let g' := TwoPGraph.apply g (TwoPGraph.removeEdge a b)
+  twopgraphEq (TwoPGraph.apply g' (TwoPGraph.removeEdge a b)) g'
 
 /-! ## Property Tests: Type-Specific Properties -/
 
@@ -1147,6 +1238,62 @@ instance : Arbitrary (LSEQOp Nat) where
   let lseq' := LSEQ.apply lseq (LSEQ.insert id1 v1)
   lseq'.toList == [v1, v2]
 
+-- TwoPGraph: contains vertex after add
+#test ∀ (v : Nat),
+  let g := TwoPGraph.apply TwoPGraph.empty (TwoPGraph.addVertex v)
+  g.containsVertex v
+
+-- TwoPGraph: vertex removed after remove
+#test ∀ (v : Nat),
+  let g := TwoPGraph.empty
+    |> fun g => TwoPGraph.apply g (TwoPGraph.addVertex v)
+    |> fun g => TwoPGraph.apply g (TwoPGraph.removeVertex v)
+  !g.containsVertex v && g.isVertexRemoved v
+
+-- TwoPGraph: once vertex removed, cannot re-add
+#test ∀ (v : Nat),
+  let g := TwoPGraph.empty
+    |> fun g => TwoPGraph.apply g (TwoPGraph.addVertex v)
+    |> fun g => TwoPGraph.apply g (TwoPGraph.removeVertex v)
+    |> fun g => TwoPGraph.apply g (TwoPGraph.addVertex v)
+  !g.containsVertex v
+
+-- TwoPGraph: contains edge after add (when both endpoints exist)
+#test ∀ (a b : Nat),
+  let g := TwoPGraph.empty
+    |> fun g => TwoPGraph.apply g (TwoPGraph.addVertex a)
+    |> fun g => TwoPGraph.apply g (TwoPGraph.addVertex b)
+    |> fun g => TwoPGraph.apply g (TwoPGraph.addEdge a b)
+  g.containsEdge a b
+
+-- TwoPGraph: edge removed after remove
+#test ∀ (a b : Nat),
+  let g := TwoPGraph.empty
+    |> fun g => TwoPGraph.apply g (TwoPGraph.addVertex a)
+    |> fun g => TwoPGraph.apply g (TwoPGraph.addVertex b)
+    |> fun g => TwoPGraph.apply g (TwoPGraph.addEdge a b)
+    |> fun g => TwoPGraph.apply g (TwoPGraph.removeEdge a b)
+  !g.containsEdge a b && g.isEdgeRemoved a b
+
+-- TwoPGraph: once edge removed, cannot re-add
+#test ∀ (a b : Nat),
+  let g := TwoPGraph.empty
+    |> fun g => TwoPGraph.apply g (TwoPGraph.addVertex a)
+    |> fun g => TwoPGraph.apply g (TwoPGraph.addVertex b)
+    |> fun g => TwoPGraph.apply g (TwoPGraph.addEdge a b)
+    |> fun g => TwoPGraph.apply g (TwoPGraph.removeEdge a b)
+    |> fun g => TwoPGraph.apply g (TwoPGraph.addEdge a b)
+  !g.containsEdge a b
+
+-- TwoPGraph: vertex removal hides edges
+#test ∀ (a b : Nat),
+  let g := TwoPGraph.empty
+    |> fun g => TwoPGraph.apply g (TwoPGraph.addVertex a)
+    |> fun g => TwoPGraph.apply g (TwoPGraph.addVertex b)
+    |> fun g => TwoPGraph.apply g (TwoPGraph.addEdge a b)
+    |> fun g => TwoPGraph.apply g (TwoPGraph.removeVertex a)
+  !g.containsEdge a b
+
 /-! ## Property Tests: Monotonicity -/
 
 -- GSet elements are never removed (add element, apply another op, element still there)
@@ -1260,5 +1407,11 @@ instance : Arbitrary (LSEQOp Nat) where
   let forward := LSEQ.apply (LSEQ.apply (LSEQ.apply lseq op1) op2) op3
   let reverse := LSEQ.apply (LSEQ.apply (LSEQ.apply lseq op3) op2) op1
   lseqEq forward reverse
+
+-- TwoPGraph convergence (3 ops)
+#test ∀ (g : TwoPGraph Nat) (op1 op2 op3 : TwoPGraphOp Nat),
+  let forward := TwoPGraph.apply (TwoPGraph.apply (TwoPGraph.apply g op1) op2) op3
+  let reverse := TwoPGraph.apply (TwoPGraph.apply (TwoPGraph.apply g op3) op2) op1
+  twopgraphEq forward reverse
 
 end ConvergentTests.PropertyTests

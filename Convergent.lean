@@ -37,6 +37,9 @@
   - `EWFlag` - Enable-wins flag (concurrent enable + disable = enabled)
   - `DWFlag` - Disable-wins flag (concurrent enable + disable = disabled)
 
+  ### Graphs
+  - `TwoPGraph` - Two-phase graph (vertices and edges are two-phase sets)
+
   ## Quick Start
 
   ```lean
@@ -90,6 +93,9 @@ import Convergent.Sequence.LSEQ
 -- Flags
 import Convergent.Flag.EWFlag
 import Convergent.Flag.DWFlag
+
+-- Graphs
+import Convergent.Graph.TwoPGraph
 
 namespace Convergent
 end Convergent

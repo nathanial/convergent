@@ -52,7 +52,7 @@
 
 | CRDT | Status | Description |
 |------|:------:|-------------|
-| 2P2PGraph | ✗ | Two-phase graph (vertices and edges) |
+| TwoPGraph | ✓ | Two-phase graph (vertices and edges are TwoPSets) |
 | AddOnlyDAG | ✗ | Add-only directed acyclic graph |
 
 ---
@@ -61,22 +61,22 @@
 
 ### Core CRDT Laws
 
-| Property | GCounter | PNCounter | LWWReg | MVReg | GSet | TwoPSet | ORSet | LWWElemSet | LWWMap | ORMap | PNMap | RGA | LSEQ | EWFlag | DWFlag |
-|----------|:--------:|:---------:|:------:|:-----:|:----:|:-------:|:-----:|:----------:|:------:|:-----:|:-----:|:---:|:----:|:------:|:------:|
-| Merge commutativity | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Merge associativity | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Merge idempotency | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Apply commutativity | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Apply idempotency | n/a | n/a | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | n/a | ✓ | ✓ | ✓ | ✓ |
+| Property | GCounter | PNCounter | LWWReg | MVReg | GSet | TwoPSet | ORSet | LWWElemSet | LWWMap | ORMap | PNMap | RGA | LSEQ | EWFlag | DWFlag | TwoPGraph |
+|----------|:--------:|:---------:|:------:|:-----:|:----:|:-------:|:-----:|:----------:|:------:|:-----:|:-----:|:---:|:----:|:------:|:------:|:---------:|
+| Merge commutativity | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Merge associativity | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Merge idempotency | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Apply commutativity | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Apply idempotency | n/a | n/a | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | n/a | ✓ | ✓ | ✓ | ✓ | ✓ |
 
 Legend: ✓ = tested and passing, ✗ = not yet tested, n/a = not applicable
 
 ### Convergence
 
-| Property | GCounter | PNCounter | LWWReg | MVReg | GSet | TwoPSet | ORSet | LWWElemSet | LWWMap | ORMap | PNMap | RGA | LSEQ | EWFlag | DWFlag |
-|----------|:--------:|:---------:|:------:|:-----:|:----:|:-------:|:-----:|:----------:|:------:|:-----:|:-----:|:---:|:----:|:------:|:------:|
-| 2-op convergence | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| 3-op convergence | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Property | GCounter | PNCounter | LWWReg | MVReg | GSet | TwoPSet | ORSet | LWWElemSet | LWWMap | ORMap | PNMap | RGA | LSEQ | EWFlag | DWFlag | TwoPGraph |
+|----------|:--------:|:---------:|:------:|:-----:|:----:|:-------:|:-----:|:----------:|:------:|:-----:|:-----:|:---:|:----:|:------:|:------:|:---------:|
+| 2-op convergence | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| 3-op convergence | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 
 Note: 2-op convergence covered by apply commutativity. 3-op tests forward vs reverse ordering.
 
@@ -113,18 +113,25 @@ Note: 2-op convergence covered by apply commutativity. 3-op tests forward vs rev
 | Add contains element | LWWElementSet | ✓ |
 | Increment adds exactly 1 | PNMap | ✓ |
 | Decrement subtracts exactly 1 | PNMap | ✓ |
+| Contains vertex after add | TwoPGraph | ✓ |
+| Vertex removed after remove | TwoPGraph | ✓ |
+| Once vertex removed, cannot re-add | TwoPGraph | ✓ |
+| Contains edge after add (with endpoints) | TwoPGraph | ✓ |
+| Edge removed after remove | TwoPGraph | ✓ |
+| Once edge removed, cannot re-add | TwoPGraph | ✓ |
+| Vertex removal hides edges | TwoPGraph | ✓ |
 
 ---
 
 ## Test Summary
 
-**Total Property Tests: 137**
+**Total Property Tests: 158**
 
-- Core CRDT laws: 45 tests (merge laws) + 15 tests (apply commutativity) + 19 tests (apply idempotency)
-- Convergence: 15 tests (3-op)
+- Core CRDT laws: 48 tests (merge laws) + 16 tests (apply commutativity) + 23 tests (apply idempotency)
+- Convergence: 16 tests (3-op)
 - Monotonicity: 4 tests
-- Type-specific: 23 tests (includes EWFlag/DWFlag/LWWElementSet/PNMap/LSEQ semantics)
-- Additional semantics: 16 tests
+- Type-specific: 30 tests (includes EWFlag/DWFlag/LWWElementSet/PNMap/LSEQ/TwoPGraph semantics)
+- Additional semantics: 21 tests
 
 ---
 
@@ -154,6 +161,16 @@ When implementing new CRDTs, they should satisfy:
 - [x] Delete creates tombstone
 - [x] Contains ID after insert
 
+### TwoPGraph (Implemented ✓)
+- [x] Apply idempotency (add/remove vertex/edge)
+- [x] Contains vertex after add
+- [x] Vertex removed after remove
+- [x] Once vertex removed, cannot re-add (two-phase semantics)
+- [x] Contains edge after add (when both endpoints exist)
+- [x] Edge removed after remove
+- [x] Once edge removed, cannot re-add
+- [x] Vertex removal hides edges
+
 ---
 
 ## Running Tests
@@ -171,3 +188,4 @@ lake build && lake test
 - `ConvergentTests/MapTests.lean` - LWWMap, ORMap, PNMap unit tests
 - `ConvergentTests/SequenceTests.lean` - RGA, LSEQ unit tests
 - `ConvergentTests/FlagTests.lean` - EWFlag, DWFlag unit tests
+- `ConvergentTests/GraphTests.lean` - TwoPGraph unit tests
