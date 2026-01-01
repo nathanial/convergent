@@ -99,5 +99,8 @@ import Convergent.Flag.DWFlag
 -- Graphs
 import Convergent.Graph.TwoPGraph
 
+-- Serialization
+import Convergent.Serialization
+
 namespace Convergent
 end Convergent

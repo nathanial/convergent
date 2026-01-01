@@ -1,0 +1,62 @@
+/-
+  Binary Serialization for Flag CRDTs
+
+  Provides BinarySerialize instances for:
+  - EWFlag, EWFlagOp
+  - DWFlag, DWFlagOp
+-/
+import Convergent.Serialization.Set
+import Convergent.Flag.EWFlag
+import Convergent.Flag.DWFlag
+
+namespace Convergent.Serialization
+
+open Convergent
+
+/-! ## EWFlag -/
+
+instance : BinarySerialize EWFlag where
+  encode f :=
+    BinarySerialize.encode f.enabled ++ BinarySerialize.encode f.disabled
+  decode bytes offset := do
+    let (enabled, offset') ← BinarySerialize.decode bytes offset
+    let (disabled, consumed) ← BinarySerialize.decode bytes offset'
+    return ({ enabled, disabled }, consumed)
+
+instance : BinarySerialize EWFlagOp where
+  encode op := match op with
+    | .enable replica => ByteArray.mk #[0] ++ BinarySerialize.encode replica
+    | .disable replica => ByteArray.mk #[1] ++ BinarySerialize.encode replica
+  decode bytes offset := do
+    guard (offset < bytes.size)
+    let tag := bytes.get! offset
+    let (replica, consumed) ← BinarySerialize.decode bytes (offset + 1)
+    match tag with
+    | 0 => return (.enable replica, consumed)
+    | 1 => return (.disable replica, consumed)
+    | _ => none
+
+/-! ## DWFlag -/
+
+instance : BinarySerialize DWFlag where
+  encode f :=
+    BinarySerialize.encode f.enabled ++ BinarySerialize.encode f.disabled
+  decode bytes offset := do
+    let (enabled, offset') ← BinarySerialize.decode bytes offset
+    let (disabled, consumed) ← BinarySerialize.decode bytes offset'
+    return ({ enabled, disabled }, consumed)
+
+instance : BinarySerialize DWFlagOp where
+  encode op := match op with
+    | .enable replica => ByteArray.mk #[0] ++ BinarySerialize.encode replica
+    | .disable replica => ByteArray.mk #[1] ++ BinarySerialize.encode replica
+  decode bytes offset := do
+    guard (offset < bytes.size)
+    let tag := bytes.get! offset
+    let (replica, consumed) ← BinarySerialize.decode bytes (offset + 1)
+    match tag with
+    | 0 => return (.enable replica, consumed)
+    | 1 => return (.disable replica, consumed)
+    | _ => none
+
+end Convergent.Serialization
