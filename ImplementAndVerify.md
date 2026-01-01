@@ -127,8 +127,19 @@ Note: 2-op convergence covered by apply commutativity. 3-op tests forward vs rev
 
 ## Test Summary
 
-**Total Property Tests: 168**
+**Total Tests: 322** (154 unit/scenario + 168 property)
 
+### Unit and Scenario Tests: 154
+- Counter tests: 10
+- Register tests: 9
+- Set tests: 24
+- Map tests: 28
+- Sequence tests: 31 (RGA, LSEQ, Fugue)
+- Flag tests: 15
+- Graph tests: 13
+- Scenario tests: 24 (real-world usage examples)
+
+### Property Tests: 168
 - Core CRDT laws: 51 tests (merge laws) + 17 tests (apply commutativity) + 25 tests (apply idempotency)
 - Convergence: 17 tests (3-op)
 - Monotonicity: 4 tests
@@ -183,11 +194,28 @@ lake build && lake test
 
 ## Test Files
 
-- `ConvergentTests/PropertyTests.lean` - Plausible property tests
+- `ConvergentTests/PropertyTests.lean` - Plausible property tests (168 tests)
+- `ConvergentTests/ScenarioTests.lean` - Real-world usage scenarios (24 tests)
 - `ConvergentTests/CounterTests.lean` - GCounter, PNCounter unit tests
 - `ConvergentTests/RegisterTests.lean` - LWWRegister, MVRegister unit tests
 - `ConvergentTests/SetTests.lean` - GSet, TwoPSet, ORSet, LWWElementSet unit tests
 - `ConvergentTests/MapTests.lean` - LWWMap, ORMap, PNMap unit tests
-- `ConvergentTests/SequenceTests.lean` - RGA, LSEQ unit tests
+- `ConvergentTests/SequenceTests.lean` - RGA, LSEQ, Fugue unit tests
 - `ConvergentTests/FlagTests.lean` - EWFlag, DWFlag unit tests
 - `ConvergentTests/GraphTests.lean` - TwoPGraph unit tests
+
+### Scenario Tests
+
+The `ScenarioTests.lean` file contains practical usage examples:
+
+| Scenario | CRDT | Description |
+|----------|------|-------------|
+| Shopping Cart | ORSet | Multi-device cart with concurrent add/remove |
+| Like Button | GCounter | Multi-region counting with merge |
+| User Presence | EWFlag | Online/offline status across devices |
+| Leaderboard | LWWMap | Player scores with timestamp resolution |
+| Social Network | TwoPGraph | Friend relationships, unfriend, account deletion |
+| Inventory System | PNMap | Multi-warehouse stock tracking |
+| Collaborative Text | Fugue | Concurrent typing with non-interleaving |
+| Conflict Resolution | MVRegister | Preserving concurrent edits |
+| Feature Flags | LWWElementSet | Per-element timestamp management |

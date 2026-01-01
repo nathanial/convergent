@@ -109,29 +109,41 @@ private def compareRightOrigins (a b : Option FugueId) : Ordering :=
   | some _, none => .gt
   | some idA, some idB => compare idA idB
 
-/-- Sort siblings by rightOrigin.
+/-- Check if a node is a same-author continuation of its leftOrigin.
+    Returns true if the node's author matches its leftOrigin's author. -/
+private def isSameAuthorContinuation (node : FugueNode α) : Bool :=
+  match node.leftOrigin with
+  | none => false
+  | some leftId => node.id.replica == leftId.replica
+
+/-- Compare two nodes for sibling ordering.
+    Priority: rightOrigin > same-author continuation > replica ID
+    Same-author continuations come first (they're continuing their own text). -/
+private def compareSiblings (a b : FugueNode α) (reverseRightOrigin : Bool) : Bool :=
+  let rightOriginCmp := if reverseRightOrigin
+    then compareRightOrigins b.rightOrigin a.rightOrigin
+    else compareRightOrigins a.rightOrigin b.rightOrigin
+  match rightOriginCmp with
+  | .lt => true
+  | .gt => false
+  | .eq =>
+    -- Same rightOrigin: prefer same-author continuations
+    let aContinues := isSameAuthorContinuation a
+    let bContinues := isSameAuthorContinuation b
+    if aContinues && !bContinues then true
+    else if !aContinues && bContinues then false
+    else a.id < b.id  -- Final tiebreaker: replica ID
+
+/-- Sort siblings by rightOrigin, then same-author continuation, then ID.
     For right-side children, later rightOrigins come first (reverse order).
     For left-side children, earlier rightOrigins come first.
-    Ties broken by FugueId. -/
+    Same-author continuations take priority over different-author insertions. -/
 private def sortSiblings (siblings : List (FugueNode α)) (side : FugueSide)
     : List (FugueNode α) :=
   let arr := siblings.toArray
   let sorted := match side with
-    | .right =>
-      -- Right children: sort by rightOrigin in REVERSE (later origins first)
-      -- Then by ID for determinism
-      arr.qsort fun a b =>
-        match compareRightOrigins b.rightOrigin a.rightOrigin with
-        | .eq => a.id < b.id
-        | .lt => true
-        | .gt => false
-    | .left =>
-      -- Left children: sort by rightOrigin normally
-      arr.qsort fun a b =>
-        match compareRightOrigins a.rightOrigin b.rightOrigin with
-        | .eq => a.id < b.id
-        | .lt => true
-        | .gt => false
+    | .right => arr.qsort fun a b => compareSiblings a b true
+    | .left => arr.qsort fun a b => compareSiblings a b false
   sorted.toList
 
 /-- Traverse the tree in-order to get document ordering.
