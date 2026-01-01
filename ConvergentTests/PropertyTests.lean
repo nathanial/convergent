@@ -98,6 +98,10 @@ def pnmapEq [BEq κ] [Hashable κ] (a b : PNMap κ) : Bool :=
   aList.length == bList.length &&
   aList.all fun (k, v) => b.get k == v
 
+/-- Compare LSEQs by visible content -/
+def lseqEq [BEq α] (a b : LSEQ α) : Bool :=
+  a.toList == b.toList
+
 /-! ## Random Generators -/
 
 /-- Generate a small Nat in range [0, n] -/
@@ -163,6 +167,11 @@ instance [Repr κ] : Repr (PNMapOp κ) where
   reprPrec op _ := match op with
     | .increment k r => s!"PNMapOp.increment({repr k}, {repr r})"
     | .decrement k r => s!"PNMapOp.decrement({repr k}, {repr r})"
+
+instance [Repr α] : Repr (LSEQOp α) where
+  reprPrec op _ := match op with
+    | .insert id v => s!"LSEQOp.insert({repr id}, {repr v})"
+    | .delete id => s!"LSEQOp.delete({repr id})"
 
 /-! ## Shrinkable Instances -/
 
@@ -260,6 +269,18 @@ instance [BEq κ] [Hashable κ] : Shrinkable (PNMap κ) where
   shrink _ := [PNMap.empty]
 
 instance : Shrinkable (PNMapOp κ) where
+  shrink _ := []
+
+instance : Shrinkable LSEQLevel where
+  shrink _ := []
+
+instance : Shrinkable LSEQId where
+  shrink _ := [{ levels := [] }]
+
+instance : Shrinkable (LSEQ α) where
+  shrink _ := [LSEQ.empty]
+
+instance : Shrinkable (LSEQOp α) where
   shrink _ := []
 
 /-! ## Arbitrary Instances for Core Types -/
@@ -556,6 +577,44 @@ instance : Arbitrary (PNMapOp Nat) where
     let isInc ← genSmallNat 1
     return if isInc == 0 then .increment key replica else .decrement key replica
 
+/-! ## Arbitrary Instances for LSEQ -/
+
+instance : Arbitrary LSEQLevel where
+  arbitrary := do
+    let pos ← genSmallNat 15  -- Within base depth 0 (16)
+    let site ← Arbitrary.arbitrary
+    return { pos, site }
+
+instance : Arbitrary LSEQId where
+  arbitrary := do
+    let numLevels ← genSmallNat 2
+    let mut levels := []
+    for _ in [0:numLevels + 1] do
+      let level ← Arbitrary.arbitrary
+      levels := levels ++ [level]
+    return { levels }
+
+instance : Arbitrary (LSEQ Nat) where
+  arbitrary := do
+    let numOps ← genSmallNat 4
+    let mut lseq := LSEQ.empty
+    let replica ← Arbitrary.arbitrary
+    for i in [0:numOps] do
+      let value ← genSmallNat 100
+      let (_, lseq') := LSEQ.insertAt lseq replica i value
+      lseq := lseq'
+    return lseq
+
+instance : Arbitrary (LSEQOp Nat) where
+  arbitrary := do
+    let id ← Arbitrary.arbitrary
+    let value ← genSmallNat 100
+    let isInsert ← genSmallNat 2
+    if isInsert < 2 then
+      return .insert id value
+    else
+      return .delete id
+
 /-! ## Property Tests: Merge Laws -/
 
 -- GCounter Merge Laws
@@ -656,6 +715,13 @@ instance : Arbitrary (PNMapOp Nat) where
           (PNMap.merge a (PNMap.merge b c))
 #test ∀ (a : PNMap Nat), pnmapEq (PNMap.merge a a) a
 
+-- LSEQ Merge Laws
+#test ∀ (a b : LSEQ Nat), lseqEq (LSEQ.merge a b) (LSEQ.merge b a)
+#test ∀ (a b c : LSEQ Nat),
+  lseqEq (LSEQ.merge (LSEQ.merge a b) c)
+         (LSEQ.merge a (LSEQ.merge b c))
+#test ∀ (a : LSEQ Nat), lseqEq (LSEQ.merge a a) a
+
 /-! ## Property Tests: Apply Commutativity -/
 
 -- GCounter apply commutes
@@ -727,6 +793,11 @@ instance : Arbitrary (PNMapOp Nat) where
 #test ∀ (s : PNMap Nat) (op1 op2 : PNMapOp Nat),
   pnmapEq (PNMap.apply (PNMap.apply s op1) op2)
           (PNMap.apply (PNMap.apply s op2) op1)
+
+-- LSEQ apply commutes
+#test ∀ (s : LSEQ Nat) (op1 op2 : LSEQOp Nat),
+  lseqEq (LSEQ.apply (LSEQ.apply s op1) op2)
+         (LSEQ.apply (LSEQ.apply s op2) op1)
 
 /-! ## Property Tests: Apply Idempotency -/
 
@@ -826,6 +897,16 @@ instance : Arbitrary (PNMapOp Nat) where
 #test ∀ (s : LWWElementSet Nat) (v : Nat) (ts : LamportTs),
   let s' := LWWElementSet.apply s (LWWElementSet.remove v ts)
   lwwElementSetEq (LWWElementSet.apply s' (LWWElementSet.remove v ts)) s'
+
+-- LSEQ insert is idempotent
+#test ∀ (lseq : LSEQ Nat) (id : LSEQId) (v : Nat),
+  let lseq' := LSEQ.apply lseq (LSEQ.insert id v)
+  lseqEq (LSEQ.apply lseq' (LSEQ.insert id v)) lseq'
+
+-- LSEQ delete is idempotent
+#test ∀ (lseq : LSEQ Nat) (id : LSEQId),
+  let lseq' := LSEQ.apply lseq (LSEQ.delete id)
+  lseqEq (LSEQ.apply lseq' (LSEQ.delete id)) lseq'
 
 /-! ## Property Tests: Type-Specific Properties -/
 
@@ -1046,6 +1127,26 @@ instance : Arbitrary (PNMapOp Nat) where
   let m' := PNMap.apply m (PNMap.decrement k r)
   m'.get k == m.get k - 1
 
+-- LSEQ: contains ID after insert
+#test ∀ (id : LSEQId) (v : Nat),
+  let lseq := LSEQ.apply LSEQ.empty (LSEQ.insert id v)
+  lseq.containsId id
+
+-- LSEQ: delete makes element invisible but keeps ID
+#test ∀ (id : LSEQId) (v : Nat),
+  let lseq := LSEQ.apply LSEQ.empty (LSEQ.insert id v)
+  let lseq' := LSEQ.apply lseq (LSEQ.delete id)
+  lseq'.containsId id && lseq'.length == 0
+
+-- LSEQ: insert ordering preserved (lower pos ID comes first)
+#test ∀ (v1 v2 : Nat),
+  let r : ReplicaId := { id := 1 }
+  let id1 := LSEQId.single 5 r
+  let id2 := LSEQId.single 10 r
+  let lseq := LSEQ.apply LSEQ.empty (LSEQ.insert id2 v2)
+  let lseq' := LSEQ.apply lseq (LSEQ.insert id1 v1)
+  lseq'.toList == [v1, v2]
+
 /-! ## Property Tests: Monotonicity -/
 
 -- GSet elements are never removed (add element, apply another op, element still there)
@@ -1153,5 +1254,11 @@ instance : Arbitrary (PNMapOp Nat) where
   let forward := PNMap.apply (PNMap.apply (PNMap.apply m op1) op2) op3
   let reverse := PNMap.apply (PNMap.apply (PNMap.apply m op3) op2) op1
   pnmapEq forward reverse
+
+-- LSEQ convergence (3 ops)
+#test ∀ (lseq : LSEQ Nat) (op1 op2 op3 : LSEQOp Nat),
+  let forward := LSEQ.apply (LSEQ.apply (LSEQ.apply lseq op1) op2) op3
+  let reverse := LSEQ.apply (LSEQ.apply (LSEQ.apply lseq op3) op2) op1
+  lseqEq forward reverse
 
 end ConvergentTests.PropertyTests

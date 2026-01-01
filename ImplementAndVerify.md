@@ -38,8 +38,8 @@
 | CRDT | Status | Description |
 |------|:------:|-------------|
 | RGA | ✓ | Replicated growable array |
+| LSEQ | ✓ | Adaptive allocation sequence CRDT (position-based) |
 | Logoot | ✗ | Position-based sequence CRDT |
-| LSEQ | ✗ | Adaptive allocation sequence CRDT |
 
 ### Flags
 
@@ -61,33 +61,33 @@
 
 ### Core CRDT Laws
 
-| Property | GCounter | PNCounter | LWWReg | MVReg | GSet | TwoPSet | ORSet | LWWElemSet | LWWMap | ORMap | PNMap | RGA | EWFlag | DWFlag |
-|----------|:--------:|:---------:|:------:|:-----:|:----:|:-------:|:-----:|:----------:|:------:|:-----:|:-----:|:---:|:------:|:------:|
-| Merge commutativity | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Merge associativity | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Merge idempotency | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Apply commutativity | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Apply idempotency | n/a | n/a | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | n/a | ✓ | ✓ | ✓ |
+| Property | GCounter | PNCounter | LWWReg | MVReg | GSet | TwoPSet | ORSet | LWWElemSet | LWWMap | ORMap | PNMap | RGA | LSEQ | EWFlag | DWFlag |
+|----------|:--------:|:---------:|:------:|:-----:|:----:|:-------:|:-----:|:----------:|:------:|:-----:|:-----:|:---:|:----:|:------:|:------:|
+| Merge commutativity | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Merge associativity | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Merge idempotency | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Apply commutativity | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Apply idempotency | n/a | n/a | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | n/a | ✓ | ✓ | ✓ | ✓ |
 
 Legend: ✓ = tested and passing, ✗ = not yet tested, n/a = not applicable
 
 ### Convergence
 
-| Property | GCounter | PNCounter | LWWReg | MVReg | GSet | TwoPSet | ORSet | LWWElemSet | LWWMap | ORMap | PNMap | RGA | EWFlag | DWFlag |
-|----------|:--------:|:---------:|:------:|:-----:|:----:|:-------:|:-----:|:----------:|:------:|:-----:|:-----:|:---:|:------:|:------:|
-| 2-op convergence | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| 3-op convergence | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Property | GCounter | PNCounter | LWWReg | MVReg | GSet | TwoPSet | ORSet | LWWElemSet | LWWMap | ORMap | PNMap | RGA | LSEQ | EWFlag | DWFlag |
+|----------|:--------:|:---------:|:------:|:-----:|:----:|:-------:|:-----:|:----------:|:------:|:-----:|:-----:|:---:|:----:|:------:|:------:|
+| 2-op convergence | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| 3-op convergence | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 
 Note: 2-op convergence covered by apply commutativity. 3-op tests forward vs reverse ordering.
 
 ### Monotonicity
 
-| Property | GCounter | PNCounter | LWWReg | MVReg | GSet | TwoPSet | ORSet | LWWMap | ORMap | RGA |
-|----------|:--------:|:---------:|:------:|:-----:|:----:|:-------:|:-----:|:------:|:-----:|:---:|
-| Value never decreases | ✓ | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
-| Elements never removed | n/a | n/a | n/a | n/a | ✓ | n/a | n/a | n/a | n/a | n/a |
-| Added set never shrinks | n/a | n/a | n/a | n/a | n/a | ✓ | n/a | n/a | n/a | n/a |
-| Removed set never shrinks | n/a | n/a | n/a | n/a | n/a | ✓ | n/a | n/a | n/a | n/a |
+| Property | GCounter | PNCounter | LWWReg | MVReg | GSet | TwoPSet | ORSet | LWWMap | ORMap | RGA | LSEQ |
+|----------|:--------:|:---------:|:------:|:-----:|:----:|:-------:|:-----:|:------:|:-----:|:---:|:----:|
+| Value never decreases | ✓ | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
+| Elements never removed | n/a | n/a | n/a | n/a | ✓ | n/a | n/a | n/a | n/a | n/a | n/a |
+| Added set never shrinks | n/a | n/a | n/a | n/a | n/a | ✓ | n/a | n/a | n/a | n/a | n/a |
+| Removed set never shrinks | n/a | n/a | n/a | n/a | n/a | ✓ | n/a | n/a | n/a | n/a | n/a |
 
 ### Type-Specific Semantics
 
@@ -99,8 +99,9 @@ Note: 2-op convergence covered by apply commutativity. 3-op tests forward vs rev
 | Re-add after remove works | ORSet, ORMap | ✓ |
 | Remove-then-add is add | ORSet | ✓ |
 | Removed cannot re-add | TwoPSet | ✓ |
-| Insert ordering preserved | RGA | ✓ |
-| Delete creates tombstone | RGA | ✓ |
+| Insert ordering preserved | RGA, LSEQ | ✓ |
+| Delete creates tombstone | RGA, LSEQ | ✓ |
+| Contains ID after insert | LSEQ | ✓ |
 | Increment adds exactly 1 | GCounter | ✓ |
 | Inc/dec work correctly | PNCounter | ✓ |
 | Contains key after put | ORMap | ✓ |
@@ -117,12 +118,12 @@ Note: 2-op convergence covered by apply commutativity. 3-op tests forward vs rev
 
 ## Test Summary
 
-**Total Property Tests: 128**
+**Total Property Tests: 137**
 
-- Core CRDT laws: 42 tests (merge laws) + 14 tests (apply commutativity) + 17 tests (apply idempotency)
-- Convergence: 14 tests (3-op)
+- Core CRDT laws: 45 tests (merge laws) + 15 tests (apply commutativity) + 19 tests (apply idempotency)
+- Convergence: 15 tests (3-op)
 - Monotonicity: 4 tests
-- Type-specific: 21 tests (includes EWFlag/DWFlag/LWWElementSet/PNMap semantics)
+- Type-specific: 23 tests (includes EWFlag/DWFlag/LWWElementSet/PNMap/LSEQ semantics)
 - Additional semantics: 16 tests
 
 ---
@@ -147,6 +148,12 @@ When implementing new CRDTs, they should satisfy:
 - [x] Later timestamp wins per element
 - [x] Can remove and re-add same element
 
+### LSEQ (Implemented ✓)
+- [x] Apply idempotency (insert/delete)
+- [x] Insert ordering preserved (lexicographic by position ID)
+- [x] Delete creates tombstone
+- [x] Contains ID after insert
+
 ---
 
 ## Running Tests
@@ -162,5 +169,5 @@ lake build && lake test
 - `ConvergentTests/RegisterTests.lean` - LWWRegister, MVRegister unit tests
 - `ConvergentTests/SetTests.lean` - GSet, TwoPSet, ORSet, LWWElementSet unit tests
 - `ConvergentTests/MapTests.lean` - LWWMap, ORMap, PNMap unit tests
-- `ConvergentTests/SequenceTests.lean` - RGA unit tests
+- `ConvergentTests/SequenceTests.lean` - RGA, LSEQ unit tests
 - `ConvergentTests/FlagTests.lean` - EWFlag, DWFlag unit tests

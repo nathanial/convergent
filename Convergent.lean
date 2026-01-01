@@ -31,6 +31,7 @@
 
   ### Sequences
   - `RGA` - Replicated Growable Array (for lists/text)
+  - `LSEQ` - Adaptive sequence CRDT (position-based, for long documents)
 
   ### Flags
   - `EWFlag` - Enable-wins flag (concurrent enable + disable = enabled)
@@ -84,6 +85,7 @@ import Convergent.Map.PNMap
 
 -- Sequences
 import Convergent.Sequence.RGA
+import Convergent.Sequence.LSEQ
 
 -- Flags
 import Convergent.Flag.EWFlag
