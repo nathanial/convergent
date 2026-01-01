@@ -102,6 +102,10 @@ def pnmapEq [BEq κ] [Hashable κ] (a b : PNMap κ) : Bool :=
 def lseqEq [BEq α] (a b : LSEQ α) : Bool :=
   a.toList == b.toList
 
+/-- Compare Fugues by visible content -/
+def fugueEq [BEq α] (a b : Fugue α) : Bool :=
+  a.toList == b.toList
+
 /-- Compare TwoPGraphs by vertices and edges -/
 def twopgraphEq [BEq V] (a b : TwoPGraph V) : Bool :=
   let aVerts := a.getVertices
@@ -299,6 +303,21 @@ instance : Shrinkable (LSEQ α) where
   shrink _ := [LSEQ.empty]
 
 instance : Shrinkable (LSEQOp α) where
+  shrink _ := []
+
+instance : Shrinkable FugueId where
+  shrink _ := []
+
+instance : Shrinkable FugueSide where
+  shrink _ := []
+
+instance : Shrinkable (FugueNode α) where
+  shrink _ := []
+
+instance : Shrinkable (Fugue α) where
+  shrink _ := [Fugue.empty]
+
+instance : Shrinkable (FugueOp α) where
   shrink _ := []
 
 instance [BEq V] : Shrinkable (TwoPGraph V) where
@@ -639,6 +658,74 @@ instance : Arbitrary (LSEQOp Nat) where
     else
       return .delete id
 
+/-! ## Arbitrary Instances for Fugue -/
+
+instance : Arbitrary FugueId where
+  arbitrary := do
+    let replica ← Arbitrary.arbitrary
+    let counter ← genSmallNat 10
+    return { replica, counter }
+
+instance : Arbitrary FugueSide where
+  arbitrary := do
+    let choice ← genSmallNat 1
+    return if choice == 0 then .left else .right
+
+instance : Arbitrary (FugueNode Nat) where
+  arbitrary := do
+    -- Generate simple nodes with unique IDs to avoid conflicts
+    let replica ← Arbitrary.arbitrary
+    let counter ← genSmallNat 100
+    let uniqueCounter := counter + 2000  -- Offset to avoid conflicts
+    let id := FugueId.mk replica uniqueCounter
+    let value ← genSmallNat 100
+    let hasValue ← genSmallNat 3
+    return {
+      id
+      value := if hasValue < 3 then some value else none
+      parent := none
+      side := .right
+      leftOrigin := none
+      rightOrigin := none
+    }
+
+instance : Arbitrary (Fugue Nat) where
+  arbitrary := do
+    let numOps ← genSmallNat 3
+    let mut fugue := Fugue.empty
+    -- Use a large random replica ID to ensure disjoint replicas between instances
+    -- Range of 10 million makes collision probability < 0.1% even with many tests
+    let replicaId ← Gen.choose Nat 0 10000000 (by omega)
+    let replica : ReplicaId := { id := replicaId.val }
+    for i in [0:numOps] do
+      let value ← genSmallNat 100
+      let (_, fugue') := Fugue.insertAt fugue replica i value
+      fugue := fugue'
+    return fugue
+
+instance : Arbitrary (FugueOp Nat) where
+  arbitrary := do
+    -- Generate unique ID with high counter to avoid conflicts
+    let replica ← Arbitrary.arbitrary
+    let counter ← genSmallNat 100
+    let uniqueCounter := counter + 1000  -- Offset to avoid conflicts with state
+    let id := FugueId.mk replica uniqueCounter
+    let value ← genSmallNat 100
+    let isInsert ← genSmallNat 2
+    if isInsert < 2 then
+      -- Create a node with unique ID and minimal structure
+      let node : FugueNode Nat := {
+        id := id
+        value := some value
+        parent := none
+        side := .right
+        leftOrigin := none
+        rightOrigin := none
+      }
+      return .insert node
+    else
+      return .delete id
+
 /-! ## Arbitrary Instances for TwoPGraph -/
 
 instance : Arbitrary (TwoPGraph Nat) where
@@ -781,6 +868,13 @@ instance : Arbitrary (TwoPGraphOp Nat) where
          (LSEQ.merge a (LSEQ.merge b c))
 #test ∀ (a : LSEQ Nat), lseqEq (LSEQ.merge a a) a
 
+-- Fugue Merge Laws
+#test ∀ (a b : Fugue Nat), fugueEq (Fugue.merge a b) (Fugue.merge b a)
+#test ∀ (a b c : Fugue Nat),
+  fugueEq (Fugue.merge (Fugue.merge a b) c)
+          (Fugue.merge a (Fugue.merge b c))
+#test ∀ (a : Fugue Nat), fugueEq (Fugue.merge a a) a
+
 -- TwoPGraph Merge Laws
 #test ∀ (a b : TwoPGraph Nat), twopgraphEq (TwoPGraph.merge a b) (TwoPGraph.merge b a)
 #test ∀ (a b c : TwoPGraph Nat),
@@ -864,6 +958,11 @@ instance : Arbitrary (TwoPGraphOp Nat) where
 #test ∀ (s : LSEQ Nat) (op1 op2 : LSEQOp Nat),
   lseqEq (LSEQ.apply (LSEQ.apply s op1) op2)
          (LSEQ.apply (LSEQ.apply s op2) op1)
+
+-- Fugue apply commutes
+#test ∀ (s : Fugue Nat) (op1 op2 : FugueOp Nat),
+  fugueEq (Fugue.apply (Fugue.apply s op1) op2)
+          (Fugue.apply (Fugue.apply s op2) op1)
 
 -- TwoPGraph apply commutes
 #test ∀ (s : TwoPGraph Nat) (op1 op2 : TwoPGraphOp Nat),
@@ -978,6 +1077,16 @@ instance : Arbitrary (TwoPGraphOp Nat) where
 #test ∀ (lseq : LSEQ Nat) (id : LSEQId),
   let lseq' := LSEQ.apply lseq (LSEQ.delete id)
   lseqEq (LSEQ.apply lseq' (LSEQ.delete id)) lseq'
+
+-- Fugue insert is idempotent
+#test ∀ (fugue : Fugue Nat) (node : FugueNode Nat),
+  let fugue' := Fugue.apply fugue (Fugue.insert node)
+  fugueEq (Fugue.apply fugue' (Fugue.insert node)) fugue'
+
+-- Fugue delete is idempotent
+#test ∀ (fugue : Fugue Nat) (id : FugueId),
+  let fugue' := Fugue.apply fugue (Fugue.delete id)
+  fugueEq (Fugue.apply fugue' (Fugue.delete id)) fugue'
 
 -- TwoPGraph addVertex is idempotent
 #test ∀ (g : TwoPGraph Nat) (v : Nat),
@@ -1238,6 +1347,33 @@ instance : Arbitrary (TwoPGraphOp Nat) where
   let lseq' := LSEQ.apply lseq (LSEQ.insert id1 v1)
   lseq'.toList == [v1, v2]
 
+-- Fugue: contains ID after insert
+#test ∀ (id : FugueId) (v : Nat),
+  let node : FugueNode Nat := {
+    id := id
+    value := some v
+    parent := none
+    side := .right
+    leftOrigin := none
+    rightOrigin := none
+  }
+  let fugue := Fugue.apply Fugue.empty (Fugue.insert node)
+  fugue.containsId id
+
+-- Fugue: delete makes element invisible but keeps ID
+#test ∀ (id : FugueId) (v : Nat),
+  let node : FugueNode Nat := {
+    id := id
+    value := some v
+    parent := none
+    side := .right
+    leftOrigin := none
+    rightOrigin := none
+  }
+  let fugue := Fugue.apply Fugue.empty (Fugue.insert node)
+  let fugue' := Fugue.apply fugue (Fugue.delete id)
+  fugue'.containsId id && fugue'.length == 0
+
 -- TwoPGraph: contains vertex after add
 #test ∀ (v : Nat),
   let g := TwoPGraph.apply TwoPGraph.empty (TwoPGraph.addVertex v)
@@ -1407,6 +1543,12 @@ instance : Arbitrary (TwoPGraphOp Nat) where
   let forward := LSEQ.apply (LSEQ.apply (LSEQ.apply lseq op1) op2) op3
   let reverse := LSEQ.apply (LSEQ.apply (LSEQ.apply lseq op3) op2) op1
   lseqEq forward reverse
+
+-- Fugue convergence (3 ops)
+#test ∀ (fugue : Fugue Nat) (op1 op2 op3 : FugueOp Nat),
+  let forward := Fugue.apply (Fugue.apply (Fugue.apply fugue op1) op2) op3
+  let reverse := Fugue.apply (Fugue.apply (Fugue.apply fugue op3) op2) op1
+  fugueEq forward reverse
 
 -- TwoPGraph convergence (3 ops)
 #test ∀ (g : TwoPGraph Nat) (op1 op2 op3 : TwoPGraphOp Nat),

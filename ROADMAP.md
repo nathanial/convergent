@@ -14,7 +14,8 @@ The following roadmap items have been implemented:
 | ✓ LWWElementSet | Per-element timestamp set |
 | ✓ PNMap | Map with PNCounter values |
 | ✓ LSEQ | Adaptive position-based sequence CRDT |
-| ✓ Property-Based Tests | 158 tests covering all CRDT laws with Plausible |
+| ✓ Fugue | Tree-based text CRDT with maximal non-interleaving |
+| ✓ Property-Based Tests | 168 tests covering all CRDT laws with Plausible |
 | ✓ Merge Tests | Covered by property tests (commutativity, associativity, idempotency) |
 
 ---
@@ -83,22 +84,6 @@ The following roadmap items have been implemented:
 - `Convergent/Counter/PNCounter.lean` (lines 24-28, 41-54)
 
 **Estimated Effort:** Small
-
-**Dependencies:** None
-
----
-
-### [Priority: Medium] Add Text CRDT (YATA/Fugue)
-
-**Description:** Implement a specialized text CRDT optimized for collaborative text editing, such as YATA or Fugue algorithm.
-
-**Rationale:** While RGA works for text, specialized text CRDTs like YATA or Fugue offer better interleaving behavior and performance for text editing scenarios.
-
-**Affected Files:**
-- New file: `Convergent/Sequence/Text.lean`
-- Update `Convergent.lean` to export the new module
-
-**Estimated Effort:** Large
 
 **Dependencies:** None
 

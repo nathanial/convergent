@@ -39,6 +39,7 @@
 |------|:------:|-------------|
 | RGA | ✓ | Replicated growable array |
 | LSEQ | ✓ | Adaptive allocation sequence CRDT (position-based) |
+| Fugue | ✓ | Tree-based text CRDT with maximal non-interleaving |
 | Logoot | ✗ | Position-based sequence CRDT |
 
 ### Flags
@@ -61,22 +62,22 @@
 
 ### Core CRDT Laws
 
-| Property | GCounter | PNCounter | LWWReg | MVReg | GSet | TwoPSet | ORSet | LWWElemSet | LWWMap | ORMap | PNMap | RGA | LSEQ | EWFlag | DWFlag | TwoPGraph |
-|----------|:--------:|:---------:|:------:|:-----:|:----:|:-------:|:-----:|:----------:|:------:|:-----:|:-----:|:---:|:----:|:------:|:------:|:---------:|
-| Merge commutativity | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Merge associativity | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Merge idempotency | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Apply commutativity | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Apply idempotency | n/a | n/a | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | n/a | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Property | GCounter | PNCounter | LWWReg | MVReg | GSet | TwoPSet | ORSet | LWWElemSet | LWWMap | ORMap | PNMap | RGA | LSEQ | Fugue | EWFlag | DWFlag | TwoPGraph |
+|----------|:--------:|:---------:|:------:|:-----:|:----:|:-------:|:-----:|:----------:|:------:|:-----:|:-----:|:---:|:----:|:-----:|:------:|:------:|:---------:|
+| Merge commutativity | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Merge associativity | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Merge idempotency | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Apply commutativity | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Apply idempotency | n/a | n/a | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | n/a | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 
 Legend: ✓ = tested and passing, ✗ = not yet tested, n/a = not applicable
 
 ### Convergence
 
-| Property | GCounter | PNCounter | LWWReg | MVReg | GSet | TwoPSet | ORSet | LWWElemSet | LWWMap | ORMap | PNMap | RGA | LSEQ | EWFlag | DWFlag | TwoPGraph |
-|----------|:--------:|:---------:|:------:|:-----:|:----:|:-------:|:-----:|:----------:|:------:|:-----:|:-----:|:---:|:----:|:------:|:------:|:---------:|
-| 2-op convergence | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| 3-op convergence | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Property | GCounter | PNCounter | LWWReg | MVReg | GSet | TwoPSet | ORSet | LWWElemSet | LWWMap | ORMap | PNMap | RGA | LSEQ | Fugue | EWFlag | DWFlag | TwoPGraph |
+|----------|:--------:|:---------:|:------:|:-----:|:----:|:-------:|:-----:|:----------:|:------:|:-----:|:-----:|:---:|:----:|:-----:|:------:|:------:|:---------:|
+| 2-op convergence | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| 3-op convergence | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 
 Note: 2-op convergence covered by apply commutativity. 3-op tests forward vs reverse ordering.
 
@@ -99,9 +100,10 @@ Note: 2-op convergence covered by apply commutativity. 3-op tests forward vs rev
 | Re-add after remove works | ORSet, ORMap | ✓ |
 | Remove-then-add is add | ORSet | ✓ |
 | Removed cannot re-add | TwoPSet | ✓ |
-| Insert ordering preserved | RGA, LSEQ | ✓ |
-| Delete creates tombstone | RGA, LSEQ | ✓ |
-| Contains ID after insert | LSEQ | ✓ |
+| Insert ordering preserved | RGA, LSEQ, Fugue | ✓ |
+| Delete creates tombstone | RGA, LSEQ, Fugue | ✓ |
+| Contains ID after insert | LSEQ, Fugue | ✓ |
+| Delete makes invisible but keeps ID | Fugue | ✓ |
 | Increment adds exactly 1 | GCounter | ✓ |
 | Inc/dec work correctly | PNCounter | ✓ |
 | Contains key after put | ORMap | ✓ |
@@ -125,13 +127,13 @@ Note: 2-op convergence covered by apply commutativity. 3-op tests forward vs rev
 
 ## Test Summary
 
-**Total Property Tests: 158**
+**Total Property Tests: 168**
 
-- Core CRDT laws: 48 tests (merge laws) + 16 tests (apply commutativity) + 23 tests (apply idempotency)
-- Convergence: 16 tests (3-op)
+- Core CRDT laws: 51 tests (merge laws) + 17 tests (apply commutativity) + 25 tests (apply idempotency)
+- Convergence: 17 tests (3-op)
 - Monotonicity: 4 tests
-- Type-specific: 30 tests (includes EWFlag/DWFlag/LWWElementSet/PNMap/LSEQ/TwoPGraph semantics)
-- Additional semantics: 21 tests
+- Type-specific: 32 tests (includes EWFlag/DWFlag/LWWElementSet/PNMap/LSEQ/Fugue/TwoPGraph semantics)
+- Additional semantics: 22 tests
 
 ---
 

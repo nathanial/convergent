@@ -179,6 +179,153 @@ test "LSEQ position ordering" := do
   -- Elements should be ordered by position: 5, 10, 15
   (lseq.toList) ≡ ["first", "mid", "last"]
 
+-- Fugue Tests
+
+testSuite "Fugue"
+
+test "Fugue empty is empty" := do
+  let f : Fugue String := Fugue.empty
+  (f.toList) ≡ ([] : List String)
+  (f.length) ≡ 0
+
+test "Fugue insert at start" := do
+  let r1 : ReplicaId := 1
+  let (_, f) := Fugue.insertAt (Fugue.empty : Fugue String) r1 0 "hello"
+  (f.toList) ≡ ["hello"]
+  (f.length) ≡ 1
+
+test "Fugue insert multiple elements" := do
+  let r1 : ReplicaId := 1
+  let (_, f1) := Fugue.insertAt (Fugue.empty : Fugue String) r1 0 "first"
+  let (_, f2) := Fugue.insertAt f1 r1 1 "second"
+  let (_, f3) := Fugue.insertAt f2 r1 2 "third"
+  (f3.toList) ≡ ["first", "second", "third"]
+  (f3.length) ≡ 3
+
+test "Fugue insert in middle" := do
+  let r1 : ReplicaId := 1
+  let (_, f1) := Fugue.insertAt (Fugue.empty : Fugue String) r1 0 "first"
+  let (_, f2) := Fugue.insertAt f1 r1 1 "third"
+  let (_, f3) := Fugue.insertAt f2 r1 1 "second"
+  (f3.toList) ≡ ["first", "second", "third"]
+
+test "Fugue delete marks tombstone" := do
+  let r1 : ReplicaId := 1
+  let (op1, f1) := Fugue.insertAt (Fugue.empty : Fugue String) r1 0 "first"
+  let (_, f2) := Fugue.insertAt f1 r1 1 "second"
+  match op1 with
+  | .insert node =>
+    let f3 := Fugue.apply f2 (Fugue.delete node.id)
+    (f3.toList) ≡ ["second"]
+    (f3.length) ≡ 1
+  | _ => pure ()
+
+test "Fugue delete is idempotent" := do
+  let r1 : ReplicaId := 1
+  let (op, f1) := Fugue.insertAt (Fugue.empty : Fugue String) r1 0 "hello"
+  match op with
+  | .insert node =>
+    let f2 := Fugue.apply f1 (Fugue.delete node.id)
+    let f3 := Fugue.apply f2 (Fugue.delete node.id)
+    (f3.toList) ≡ ([] : List String)
+  | _ => pure ()
+
+test "Fugue duplicate insert ignored" := do
+  let r1 : ReplicaId := 1
+  let id := FugueId.mk r1 1
+  let node1 : FugueNode String := {
+    id := id
+    value := some "hello"
+    parent := none
+    side := .right
+    leftOrigin := none
+    rightOrigin := none
+  }
+  let node2 : FugueNode String := {
+    id := id
+    value := some "duplicate"
+    parent := none
+    side := .right
+    leftOrigin := none
+    rightOrigin := none
+  }
+  let f := Fugue.empty
+    |> fun s => Fugue.apply s (Fugue.insert node1)
+    |> fun s => Fugue.apply s (Fugue.insert node2)
+  (f.toList) ≡ ["hello"]
+  (f.length) ≡ 1
+
+test "Fugue merge combines elements" := do
+  let r1 : ReplicaId := 1
+  let r2 : ReplicaId := 2
+  let (_, f1) := Fugue.insertAt (Fugue.empty : Fugue String) r1 0 "from r1"
+  let (_, f2) := Fugue.insertAt (Fugue.empty : Fugue String) r2 0 "from r2"
+  let merged := Fugue.merge f1 f2
+  (merged.length) ≡ 2
+
+test "Fugue merge tombstone wins" := do
+  let r1 : ReplicaId := 1
+  let id := FugueId.mk r1 1
+  let node : FugueNode String := {
+    id := id
+    value := some "hello"
+    parent := none
+    side := .right
+    leftOrigin := none
+    rightOrigin := none
+  }
+  let f1 := Fugue.apply (Fugue.empty : Fugue String) (Fugue.insert node)
+  let f2 := Fugue.apply (Fugue.empty : Fugue String) (Fugue.delete id)
+  let merged := Fugue.merge f1 f2
+  (merged.toList) ≡ ([] : List String)
+  (merged.containsId id) ≡ true  -- Tombstone still exists
+
+test "Fugue concurrent inserts from different replicas" := do
+  -- Two replicas insert at position 0 concurrently
+  -- The result should be deterministic (by replica ID ordering)
+  let r1 : ReplicaId := 1
+  let r2 : ReplicaId := 2
+  let (op1, f1) := Fugue.insertAt (Fugue.empty : Fugue String) r1 0 "from r1"
+  let (op2, f2) := Fugue.insertAt (Fugue.empty : Fugue String) r2 0 "from r2"
+  -- Apply ops from both replicas to each other
+  let merged1 := Fugue.apply f1 op2
+  let merged2 := Fugue.apply f2 op1
+  -- Both should converge to same state
+  (merged1.length) ≡ 2
+  (merged2.length) ≡ 2
+  -- Order should be deterministic
+  (merged1.toList) ≡ (merged2.toList)
+
+test "Fugue contains ID after insert" := do
+  let r1 : ReplicaId := 1
+  let id := FugueId.mk r1 1
+  let node : FugueNode String := {
+    id := id
+    value := some "hello"
+    parent := none
+    side := .right
+    leftOrigin := none
+    rightOrigin := none
+  }
+  let f := Fugue.apply Fugue.empty (Fugue.insert node)
+  (f.containsId id) ≡ true
+
+test "Fugue delete makes element invisible but keeps ID" := do
+  let r1 : ReplicaId := 1
+  let id := FugueId.mk r1 1
+  let node : FugueNode String := {
+    id := id
+    value := some "hello"
+    parent := none
+    side := .right
+    leftOrigin := none
+    rightOrigin := none
+  }
+  let f := Fugue.apply Fugue.empty (Fugue.insert node)
+  let f' := Fugue.apply f (Fugue.delete id)
+  (f'.containsId id) ≡ true
+  (f'.length) ≡ 0
+
 #generate_tests
 
 end ConvergentTests.SequenceTests
