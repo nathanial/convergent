@@ -77,6 +77,24 @@ instance : CmRDTQuery PNCounter PNCounterOp Int where
 instance : ToString PNCounter where
   toString pn := s!"PNCounter({pn.value})"
 
+/-! ## Monadic Interface -/
+
+/-- Increment the counter by 1 in the CRDT monad -/
+def incM (replica : ReplicaId) : CRDTM PNCounter Unit :=
+  applyM (increment replica)
+
+/-- Increment the counter by N in the CRDT monad -/
+def incByM (replica : ReplicaId) (n : Nat) : CRDTM PNCounter Unit :=
+  applyM (incrementBy replica n)
+
+/-- Decrement the counter by 1 in the CRDT monad -/
+def decM (replica : ReplicaId) : CRDTM PNCounter Unit :=
+  applyM (decrement replica)
+
+/-- Decrement the counter by N in the CRDT monad -/
+def decByM (replica : ReplicaId) (n : Nat) : CRDTM PNCounter Unit :=
+  applyM (decrementBy replica n)
+
 end PNCounter
 
 end Convergent

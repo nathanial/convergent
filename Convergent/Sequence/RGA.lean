@@ -15,6 +15,7 @@
   - Delete: Mark an element as deleted (tombstone)
 -/
 import Convergent.Core.CmRDT
+import Convergent.Core.Monad
 import Convergent.Core.UniqueId
 
 namespace Convergent
@@ -199,6 +200,16 @@ instance [ToString α] : ToString (RGA α) where
   toString rga :=
     let elems := rga.toList.map toString
     s!"RGA([{", ".intercalate elems}])"
+
+/-! ## Monadic Interface -/
+
+/-- Insert a value after a position in the CRDT monad -/
+def insertM [Ord α] (afterId : Option UniqueId) (value : α) (id : UniqueId) : CRDTM (RGA α) Unit :=
+  applyM (S := RGA α) (Op := RGAOp α) (insert afterId value id)
+
+/-- Delete an element by ID in the CRDT monad -/
+def deleteM [Ord α] (id : UniqueId) : CRDTM (RGA α) Unit :=
+  applyM (S := RGA α) (Op := RGAOp α) (delete id)
 
 end RGA
 

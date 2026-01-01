@@ -48,16 +48,17 @@
 
   open Convergent
 
-  -- Create a grow-only counter
+  -- Create a grow-only counter using the monadic interface
   let r1 : ReplicaId := 1
-  let counter := GCounter.empty
-    |> fun s => GCounter.apply s (GCounter.increment r1)
-  -- counter.value = 1
+  let counter := runCRDT GCounter.empty do
+    GCounter.incM r1
+    GCounter.incM r1
+  -- counter.value = 2
 
   -- Create an OR-Set
   let tag := UniqueId.mk r1 0
-  let set := ORSet.empty
-    |> fun s => ORSet.apply s (ORSet.add "item" tag)
+  let set := runCRDT ORSet.empty do
+    ORSet.addM "item" tag
   -- set.contains "item" = true
   ```
 -/
@@ -67,6 +68,7 @@ import Convergent.Core.ReplicaId
 import Convergent.Core.Timestamp
 import Convergent.Core.UniqueId
 import Convergent.Core.CmRDT
+import Convergent.Core.Monad
 
 -- Counters
 import Convergent.Counter.GCounter

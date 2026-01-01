@@ -17,6 +17,7 @@
   - Delete: Mark an element as deleted (tombstone)
 -/
 import Convergent.Core.CmRDT
+import Convergent.Core.Monad
 import Convergent.Core.ReplicaId
 
 namespace Convergent
@@ -327,6 +328,16 @@ instance [ToString α] : ToString (LSEQ α) where
   toString lseq :=
     let elems := lseq.toList.map toString
     s!"LSEQ([{", ".intercalate elems}])"
+
+/-! ## Monadic Interface -/
+
+/-- Insert a value with a position ID in the CRDT monad -/
+def insertM [Ord α] (id : LSEQId) (value : α) : CRDTM (LSEQ α) Unit :=
+  applyM (S := LSEQ α) (Op := LSEQOp α) (insert id value)
+
+/-- Delete an element by ID in the CRDT monad -/
+def deleteM [Ord α] (id : LSEQId) : CRDTM (LSEQ α) Unit :=
+  applyM (S := LSEQ α) (Op := LSEQOp α) (delete id)
 
 end LSEQ
 

@@ -17,6 +17,7 @@
   - Delete: Mark element as tombstone
 -/
 import Convergent.Core.CmRDT
+import Convergent.Core.Monad
 import Convergent.Core.ReplicaId
 import Std.Data.HashMap
 
@@ -336,6 +337,16 @@ instance [ToString α] : ToString (Fugue α) where
   toString f :=
     let elems := f.toList.map toString
     s!"Fugue([{", ".intercalate elems}])"
+
+/-! ## Monadic Interface -/
+
+/-- Insert a node in the CRDT monad -/
+def insertM (node : FugueNode α) : CRDTM (Fugue α) Unit :=
+  applyM (S := Fugue α) (Op := FugueOp α) (Fugue.insert node)
+
+/-- Delete an element by ID in the CRDT monad -/
+def deleteM (id : FugueId) : CRDTM (Fugue α) Unit :=
+  applyM (S := Fugue α) (Op := FugueOp α) (Fugue.delete id)
 
 end Fugue
 

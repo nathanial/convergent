@@ -8,6 +8,7 @@
   - Add: Insert an element into the set
 -/
 import Convergent.Core.CmRDT
+import Convergent.Core.Monad
 import Std.Data.HashSet
 
 namespace Convergent
@@ -65,6 +66,12 @@ instance [ToString α] : ToString (GSet α) where
   toString gs :=
     let elems := gs.toList.map toString
     s!"GSet(\{{", ".intercalate elems}})"
+
+/-! ## Monadic Interface -/
+
+/-- Add an element to the set in the CRDT monad -/
+def addM (value : α) : CRDTM (GSet α) Unit :=
+  applyM (add value)
 
 end GSet
 

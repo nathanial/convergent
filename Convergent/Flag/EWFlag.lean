@@ -12,6 +12,7 @@
   - Disable: Add replica to disabled set (tracked for commutativity)
 -/
 import Convergent.Core.CmRDT
+import Convergent.Core.Monad
 import Convergent.Core.ReplicaId
 import Convergent.Set.GSet
 
@@ -64,6 +65,16 @@ instance : CmRDTQuery EWFlag EWFlagOp Bool where
 
 instance : ToString EWFlag where
   toString f := s!"EWFlag({f.value})"
+
+/-! ## Monadic Interface -/
+
+/-- Enable the flag in the CRDT monad -/
+def enableM (replica : ReplicaId) : CRDTM EWFlag Unit :=
+  applyM (enable replica)
+
+/-- Disable the flag in the CRDT monad -/
+def disableM (replica : ReplicaId) : CRDTM EWFlag Unit :=
+  applyM (disable replica)
 
 end EWFlag
 

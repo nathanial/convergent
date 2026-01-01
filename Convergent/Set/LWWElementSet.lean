@@ -17,6 +17,7 @@
   - Remove: Remove element with timestamp
 -/
 import Convergent.Core.CmRDT
+import Convergent.Core.Monad
 import Convergent.Core.Timestamp
 import Std.Data.HashMap
 
@@ -125,6 +126,16 @@ instance [ToString α] : ToString (LWWElementSet α) where
   toString set :=
     let elems := set.toList.map toString
     s!"LWWElementSet(\{{", ".intercalate elems}})"
+
+/-! ## Monadic Interface -/
+
+/-- Add an element with timestamp in the CRDT monad -/
+def addM (value : α) (timestamp : LamportTs) : CRDTM (LWWElementSet α) Unit :=
+  applyM (add value timestamp)
+
+/-- Remove an element with timestamp in the CRDT monad -/
+def removeM (value : α) (timestamp : LamportTs) : CRDTM (LWWElementSet α) Unit :=
+  applyM (remove value timestamp)
 
 end LWWElementSet
 

@@ -15,6 +15,7 @@
   - Remove: Remove all observed tags for an element
 -/
 import Convergent.Core.CmRDT
+import Convergent.Core.Monad
 import Convergent.Core.UniqueId
 import Std.Data.HashMap
 
@@ -105,6 +106,16 @@ instance [ToString α] : ToString (ORSet α) where
   toString os :=
     let elems := os.toList.map toString
     s!"ORSet(\{{", ".intercalate elems}})"
+
+/-! ## Monadic Interface -/
+
+/-- Add an element with a unique tag in the CRDT monad -/
+def addM (value : α) (tag : UniqueId) : CRDTM (ORSet α) Unit :=
+  applyM (add value tag)
+
+/-- Remove an element with its observed tags in the CRDT monad -/
+def removeWithTagsM (value : α) (observedTags : List UniqueId) : CRDTM (ORSet α) Unit :=
+  applyM (ORSetOp.remove value observedTags)
 
 end ORSet
 

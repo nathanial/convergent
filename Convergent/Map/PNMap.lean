@@ -12,6 +12,7 @@
   - Decrement: Subtract 1 from the counter at a key
 -/
 import Convergent.Core.CmRDT
+import Convergent.Core.Monad
 import Convergent.Core.ReplicaId
 import Convergent.Counter.PNCounter
 import Std.Data.HashMap
@@ -100,6 +101,16 @@ instance [ToString κ] : ToString (PNMap κ) where
   toString m :=
     let pairs := m.toList.map fun (k, v) => s!"{k}: {v}"
     s!"PNMap(\{{", ".intercalate pairs}})"
+
+/-! ## Monadic Interface -/
+
+/-- Increment the counter at a key in the CRDT monad -/
+def incM (key : κ) (replica : ReplicaId) : CRDTM (PNMap κ) Unit :=
+  applyM (increment key replica)
+
+/-- Decrement the counter at a key in the CRDT monad -/
+def decM (key : κ) (replica : ReplicaId) : CRDTM (PNMap κ) Unit :=
+  applyM (decrement key replica)
 
 end PNMap
 

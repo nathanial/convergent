@@ -81,6 +81,16 @@ instance [ToString α] : ToString (TwoPSet α) where
     let elems := tps.toList.map toString
     s!"TwoPSet(\{{", ".intercalate elems}})"
 
+/-! ## Monadic Interface -/
+
+/-- Add an element to the set in the CRDT monad -/
+def addM (value : α) : CRDTM (TwoPSet α) Unit :=
+  applyM (add value)
+
+/-- Remove an element from the set in the CRDT monad -/
+def removeM (value : α) : CRDTM (TwoPSet α) Unit :=
+  applyM (remove value)
+
 end TwoPSet
 
 end Convergent

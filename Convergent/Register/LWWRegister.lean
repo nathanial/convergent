@@ -10,6 +10,7 @@
   The value with the highest timestamp wins. Ties are broken by replica ID.
 -/
 import Convergent.Core.CmRDT
+import Convergent.Core.Monad
 import Convergent.Core.Timestamp
 
 namespace Convergent
@@ -88,6 +89,12 @@ instance [ToString α] : ToString (LWWRegister α) where
   toString reg := match reg.value with
     | none => "LWWRegister(empty)"
     | some (v, ts) => s!"LWWRegister({v} @ {ts})"
+
+/-! ## Monadic Interface -/
+
+/-- Set the register value with timestamp in the CRDT monad -/
+def setM [Ord α] (value : α) (timestamp : LamportTs) : CRDTM (LWWRegister α) Unit :=
+  applyM (set value timestamp)
 
 end LWWRegister
 

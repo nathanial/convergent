@@ -12,6 +12,7 @@
   - Disable: Add replica to disabled set
 -/
 import Convergent.Core.CmRDT
+import Convergent.Core.Monad
 import Convergent.Core.ReplicaId
 import Convergent.Set.GSet
 
@@ -64,6 +65,16 @@ instance : CmRDTQuery DWFlag DWFlagOp Bool where
 
 instance : ToString DWFlag where
   toString f := s!"DWFlag({f.value})"
+
+/-! ## Monadic Interface -/
+
+/-- Enable the flag in the CRDT monad -/
+def enableM (replica : ReplicaId) : CRDTM DWFlag Unit :=
+  applyM (enable replica)
+
+/-- Disable the flag in the CRDT monad -/
+def disableM (replica : ReplicaId) : CRDTM DWFlag Unit :=
+  applyM (disable replica)
 
 end DWFlag
 

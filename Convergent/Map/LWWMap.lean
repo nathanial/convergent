@@ -15,6 +15,7 @@
   - Delete: Remove a key
 -/
 import Convergent.Core.CmRDT
+import Convergent.Core.Monad
 import Convergent.Core.Timestamp
 import Std.Data.HashMap
 
@@ -143,6 +144,16 @@ instance [ToString κ] [ToString α] : ToString (LWWMap κ α) where
   toString m :=
     let pairs := m.toList.map fun (k, v) => s!"{k}: {v}"
     s!"LWWMap(\{{", ".intercalate pairs}})"
+
+/-! ## Monadic Interface -/
+
+/-- Put a key-value pair with timestamp in the CRDT monad -/
+def putM [Ord α] (key : κ) (value : α) (timestamp : LamportTs) : CRDTM (LWWMap κ α) Unit :=
+  applyM (S := LWWMap κ α) (Op := LWWMapOp κ α) (put key value timestamp)
+
+/-- Delete a key with timestamp in the CRDT monad -/
+def deleteM [Ord α] (key : κ) (timestamp : LamportTs) : CRDTM (LWWMap κ α) Unit :=
+  applyM (S := LWWMap κ α) (Op := LWWMapOp κ α) (delete key timestamp)
 
 end LWWMap
 

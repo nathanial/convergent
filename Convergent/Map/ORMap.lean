@@ -17,6 +17,7 @@
   - Update: Apply a nested CRDT operation to a value at a specific tag
 -/
 import Convergent.Core.CmRDT
+import Convergent.Core.Monad
 import Convergent.Core.UniqueId
 import Std.Data.HashMap
 
@@ -152,6 +153,20 @@ instance [ToString κ] [ToString α] : ToString (ORMap κ α OpA) where
   toString m :=
     let pairs := m.toList.map fun (k, v) => s!"{k}: {v}"
     s!"ORMap(\{{", ".intercalate pairs}})"
+
+/-! ## Monadic Interface -/
+
+/-- Put a value at a key with a unique tag in the CRDT monad -/
+def putM [CmRDT α OpA] (key : κ) (value : α) (tag : UniqueId) : CRDTM (ORMap κ α OpA) Unit :=
+  applyM (S := ORMap κ α OpA) (Op := ORMapOp κ α OpA) (put key value tag)
+
+/-- Delete a key with its observed tags in the CRDT monad -/
+def deleteWithTagsM [CmRDT α OpA] (key : κ) (observedTags : List UniqueId) : CRDTM (ORMap κ α OpA) Unit :=
+  applyM (S := ORMap κ α OpA) (Op := ORMapOp κ α OpA) (ORMapOp.delete key observedTags)
+
+/-- Update a nested value at a key/tag in the CRDT monad -/
+def updateM [CmRDT α OpA] (key : κ) (tag : UniqueId) (op : OpA) : CRDTM (ORMap κ α OpA) Unit :=
+  applyM (S := ORMap κ α OpA) (Op := ORMapOp κ α OpA) (update key tag op)
 
 end ORMap
 

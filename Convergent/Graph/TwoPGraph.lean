@@ -127,6 +127,24 @@ instance [ToString V] : ToString (TwoPGraph V) where
     let es := g.getEdges.map fun (a, b) => s!"{a} → {b}"
     s!"TwoPGraph(vertices: [{", ".intercalate vs}], edges: [{", ".intercalate es}])"
 
+/-! ## Monadic Interface -/
+
+/-- Add a vertex in the CRDT monad -/
+def addVertexM (v : V) : CRDTM (TwoPGraph V) Unit :=
+  applyM (addVertex v)
+
+/-- Remove a vertex in the CRDT monad -/
+def removeVertexM (v : V) : CRDTM (TwoPGraph V) Unit :=
+  applyM (removeVertex v)
+
+/-- Add an edge in the CRDT monad -/
+def addEdgeM (from_ to : V) : CRDTM (TwoPGraph V) Unit :=
+  applyM (addEdge from_ to)
+
+/-- Remove an edge in the CRDT monad -/
+def removeEdgeM (from_ to : V) : CRDTM (TwoPGraph V) Unit :=
+  applyM (removeEdge from_ to)
+
 end TwoPGraph
 
 end Convergent

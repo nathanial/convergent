@@ -11,6 +11,7 @@
   Query returns a list of all concurrent values.
 -/
 import Convergent.Core.CmRDT
+import Convergent.Core.Monad
 import Convergent.Core.Timestamp
 
 namespace Convergent
@@ -136,6 +137,12 @@ instance [ToString α] : ToString (MVRegister α) where
   toString reg :=
     let vals := reg.values.map fun (v, _) => toString v
     s!"MVRegister([{", ".intercalate vals}])"
+
+/-! ## Monadic Interface -/
+
+/-- Set the register value with vector clock in the CRDT monad -/
+def setM [BEq α] [Ord α] (value : α) (clock : VectorClock) : CRDTM (MVRegister α) Unit :=
+  applyM (set value clock)
 
 end MVRegister
 

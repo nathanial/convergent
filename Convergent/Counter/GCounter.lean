@@ -11,6 +11,7 @@
   This is the simplest CRDT - increment operations trivially commute.
 -/
 import Convergent.Core.CmRDT
+import Convergent.Core.Monad
 import Convergent.Core.ReplicaId
 import Std.Data.HashMap
 
@@ -68,6 +69,16 @@ instance : CmRDTQuery GCounter GCounterOp Nat where
 
 instance : ToString GCounter where
   toString gc := s!"GCounter({gc.value})"
+
+/-! ## Monadic Interface -/
+
+/-- Increment the counter by 1 in the CRDT monad -/
+def incM (replica : ReplicaId) : CRDTM GCounter Unit :=
+  applyM (increment replica)
+
+/-- Increment the counter by N in the CRDT monad -/
+def incByM (replica : ReplicaId) (n : Nat) : CRDTM GCounter Unit :=
+  applyM (incrementBy replica n)
 
 end GCounter
 

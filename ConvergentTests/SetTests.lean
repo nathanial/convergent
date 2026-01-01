@@ -13,21 +13,22 @@ test "GSet empty contains nothing" := do
   (gs.contains 1) ≡ false
 
 test "GSet add makes present" := do
-  let gs := GSet.apply GSet.empty (GSet.add 42)
+  let gs := runCRDT GSet.empty do
+    GSet.addM 42
   (gs.contains 42) ≡ true
 
 test "GSet add is idempotent" := do
-  let gs := GSet.empty
-    |> fun s => GSet.apply s (GSet.add 1)
-    |> fun s => GSet.apply s (GSet.add 1)
-    |> fun s => GSet.apply s (GSet.add 1)
+  let gs := runCRDT GSet.empty do
+    GSet.addM 1
+    GSet.addM 1
+    GSet.addM 1
   (gs.size) ≡ 1
 
 test "GSet multiple elements" := do
-  let gs := GSet.empty
-    |> fun s => GSet.apply s (GSet.add 1)
-    |> fun s => GSet.apply s (GSet.add 2)
-    |> fun s => GSet.apply s (GSet.add 3)
+  let gs := runCRDT GSet.empty do
+    GSet.addM 1
+    GSet.addM 2
+    GSet.addM 3
   (gs.contains 1) ≡ true
   (gs.contains 2) ≡ true
   (gs.contains 3) ≡ true
@@ -40,26 +41,27 @@ test "TwoPSet empty contains nothing" := do
   (tps.contains 1) ≡ false
 
 test "TwoPSet add makes present" := do
-  let tps := TwoPSet.apply TwoPSet.empty (TwoPSet.add 42)
+  let tps := runCRDT TwoPSet.empty do
+    TwoPSet.addM 42
   (tps.contains 42) ≡ true
 
 test "TwoPSet remove makes absent" := do
-  let tps := TwoPSet.empty
-    |> fun s => TwoPSet.apply s (TwoPSet.add 42)
-    |> fun s => TwoPSet.apply s (TwoPSet.remove 42)
+  let tps := runCRDT TwoPSet.empty do
+    TwoPSet.addM 42
+    TwoPSet.removeM 42
   (tps.contains 42) ≡ false
 
 test "TwoPSet cannot re-add" := do
-  let tps := TwoPSet.empty
-    |> fun s => TwoPSet.apply s (TwoPSet.add 42)
-    |> fun s => TwoPSet.apply s (TwoPSet.remove 42)
-    |> fun s => TwoPSet.apply s (TwoPSet.add 42)
+  let tps := runCRDT TwoPSet.empty do
+    TwoPSet.addM 42
+    TwoPSet.removeM 42
+    TwoPSet.addM 42
   (tps.contains 42) ≡ false
 
 test "TwoPSet remove before add" := do
-  let tps := TwoPSet.empty
-    |> fun s => TwoPSet.apply s (TwoPSet.remove 42)
-    |> fun s => TwoPSet.apply s (TwoPSet.add 42)
+  let tps := runCRDT TwoPSet.empty do
+    TwoPSet.removeM 42
+    TwoPSet.addM 42
   (tps.contains 42) ≡ false
 
 testSuite "ORSet"
@@ -71,7 +73,8 @@ test "ORSet empty contains nothing" := do
 test "ORSet add makes present" := do
   let r1 : ReplicaId := 1
   let tag := UniqueId.new r1 0
-  let os := ORSet.apply ORSet.empty (ORSet.add 42 tag)
+  let os := runCRDT ORSet.empty do
+    ORSet.addM 42 tag
   (os.contains 42) ≡ true
 
 test "ORSet remove removes" := do
@@ -89,7 +92,8 @@ test "ORSet can re-add" := do
   let os := ORSet.apply ORSet.empty (ORSet.add 42 tag1)
   let removeOp := ORSet.remove os 42
   let os' := ORSet.apply os removeOp
-  let os'' := ORSet.apply os' (ORSet.add 42 tag2)
+  let os'' := runCRDT os' do
+    ORSet.addM 42 tag2
   (os''.contains 42) ≡ true
 
 test "ORSet concurrent add wins" := do
@@ -97,12 +101,15 @@ test "ORSet concurrent add wins" := do
   let r2 : ReplicaId := 2
   let tag1 := UniqueId.new r1 0
   let tag2 := UniqueId.new r2 0
-  let os := ORSet.empty
-    |> fun s => ORSet.apply s (ORSet.add 42 tag1)
+  let os := runCRDT ORSet.empty do
+    ORSet.addM 42 tag1
   let removeOp := ORSet.remove os 42
-  let os' := os
-    |> fun s => ORSet.apply s (ORSet.add 42 tag2)
-    |> fun s => ORSet.apply s removeOp
+  let observedTags := match removeOp with
+    | .remove _ tags => tags
+    | _ => []
+  let os' := runCRDT os do
+    ORSet.addM 42 tag2
+    ORSet.removeWithTagsM 42 observedTags
   (os'.contains 42) ≡ true
 
 testSuite "LWWElementSet"
@@ -114,16 +121,17 @@ test "LWWElementSet empty contains nothing" := do
 test "LWWElementSet add makes present" := do
   let r1 : ReplicaId := 1
   let ts := LamportTs.new 1 r1
-  let set := LWWElementSet.apply LWWElementSet.empty (LWWElementSet.add 42 ts)
+  let set := runCRDT LWWElementSet.empty do
+    LWWElementSet.addM 42 ts
   (set.contains 42) ≡ true
 
 test "LWWElementSet remove makes absent" := do
   let r1 : ReplicaId := 1
   let ts1 := LamportTs.new 1 r1
   let ts2 := LamportTs.new 2 r1
-  let set := LWWElementSet.empty
-    |> fun s => LWWElementSet.apply s (LWWElementSet.add 42 ts1)
-    |> fun s => LWWElementSet.apply s (LWWElementSet.remove 42 ts2)
+  let set := runCRDT LWWElementSet.empty do
+    LWWElementSet.addM 42 ts1
+    LWWElementSet.removeM 42 ts2
   (set.contains 42) ≡ false
 
 test "LWWElementSet later timestamp wins (add after remove)" := do
@@ -131,9 +139,9 @@ test "LWWElementSet later timestamp wins (add after remove)" := do
   let ts1 := LamportTs.new 1 r1
   let ts2 := LamportTs.new 2 r1
   -- Remove at ts1, then add at ts2 (later) - add wins
-  let set := LWWElementSet.empty
-    |> fun s => LWWElementSet.apply s (LWWElementSet.remove 42 ts1)
-    |> fun s => LWWElementSet.apply s (LWWElementSet.add 42 ts2)
+  let set := runCRDT LWWElementSet.empty do
+    LWWElementSet.removeM 42 ts1
+    LWWElementSet.addM 42 ts2
   (set.contains 42) ≡ true
 
 test "LWWElementSet later timestamp wins (remove after add)" := do
@@ -141,18 +149,18 @@ test "LWWElementSet later timestamp wins (remove after add)" := do
   let ts1 := LamportTs.new 1 r1
   let ts2 := LamportTs.new 2 r1
   -- Add at ts1, then remove at ts2 (later) - remove wins
-  let set := LWWElementSet.empty
-    |> fun s => LWWElementSet.apply s (LWWElementSet.add 42 ts1)
-    |> fun s => LWWElementSet.apply s (LWWElementSet.remove 42 ts2)
+  let set := runCRDT LWWElementSet.empty do
+    LWWElementSet.addM 42 ts1
+    LWWElementSet.removeM 42 ts2
   (set.contains 42) ≡ false
 
 test "LWWElementSet equal timestamps add-wins" := do
   let r1 : ReplicaId := 1
   let ts := LamportTs.new 1 r1
   -- Remove at ts, then add at same ts - add wins (bias)
-  let set := LWWElementSet.empty
-    |> fun s => LWWElementSet.apply s (LWWElementSet.remove 42 ts)
-    |> fun s => LWWElementSet.apply s (LWWElementSet.add 42 ts)
+  let set := runCRDT LWWElementSet.empty do
+    LWWElementSet.removeM 42 ts
+    LWWElementSet.addM 42 ts
   (set.contains 42) ≡ true
 
 test "LWWElementSet can re-add after remove" := do
@@ -160,10 +168,10 @@ test "LWWElementSet can re-add after remove" := do
   let ts1 := LamportTs.new 1 r1
   let ts2 := LamportTs.new 2 r1
   let ts3 := LamportTs.new 3 r1
-  let set := LWWElementSet.empty
-    |> fun s => LWWElementSet.apply s (LWWElementSet.add 42 ts1)
-    |> fun s => LWWElementSet.apply s (LWWElementSet.remove 42 ts2)
-    |> fun s => LWWElementSet.apply s (LWWElementSet.add 42 ts3)
+  let set := runCRDT LWWElementSet.empty do
+    LWWElementSet.addM 42 ts1
+    LWWElementSet.removeM 42 ts2
+    LWWElementSet.addM 42 ts3
   (set.contains 42) ≡ true
 
 test "LWWElementSet multiple elements" := do
@@ -171,10 +179,10 @@ test "LWWElementSet multiple elements" := do
   let ts1 := LamportTs.new 1 r1
   let ts2 := LamportTs.new 2 r1
   let ts3 := LamportTs.new 3 r1
-  let set := LWWElementSet.empty
-    |> fun s => LWWElementSet.apply s (LWWElementSet.add 1 ts1)
-    |> fun s => LWWElementSet.apply s (LWWElementSet.add 2 ts2)
-    |> fun s => LWWElementSet.apply s (LWWElementSet.add 3 ts3)
+  let set := runCRDT LWWElementSet.empty do
+    LWWElementSet.addM 1 ts1
+    LWWElementSet.addM 2 ts2
+    LWWElementSet.addM 3 ts3
   (set.contains 1) ≡ true
   (set.contains 2) ≡ true
   (set.contains 3) ≡ true
@@ -185,8 +193,10 @@ test "LWWElementSet merge combines entries" := do
   let r2 : ReplicaId := 2
   let ts1 := LamportTs.new 1 r1
   let ts2 := LamportTs.new 1 r2
-  let setA := LWWElementSet.apply LWWElementSet.empty (LWWElementSet.add 1 ts1)
-  let setB := LWWElementSet.apply LWWElementSet.empty (LWWElementSet.add 2 ts2)
+  let setA := runCRDT LWWElementSet.empty do
+    LWWElementSet.addM 1 ts1
+  let setB := runCRDT LWWElementSet.empty do
+    LWWElementSet.addM 2 ts2
   let merged := LWWElementSet.merge setA setB
   (merged.contains 1) ≡ true
   (merged.contains 2) ≡ true
@@ -198,8 +208,10 @@ test "LWWElementSet merge takes higher timestamp" := do
   let ts2 := LamportTs.new 2 r2
   -- setA has element added at ts1
   -- setB has element removed at ts2 (later)
-  let setA := LWWElementSet.apply LWWElementSet.empty (LWWElementSet.add 42 ts1)
-  let setB := LWWElementSet.apply LWWElementSet.empty (LWWElementSet.remove 42 ts2)
+  let setA := runCRDT LWWElementSet.empty do
+    LWWElementSet.addM 42 ts1
+  let setB := runCRDT LWWElementSet.empty do
+    LWWElementSet.removeM 42 ts2
   let merged := LWWElementSet.merge setA setB
   (merged.contains 42) ≡ false  -- ts2 > ts1, so remove wins
 
