@@ -19,11 +19,14 @@ open Convergent
 
 instance [BinarySerialize α] : BinarySerialize (RGANode α) where
   encode node :=
-    BinarySerialize.encode node.id ++ BinarySerialize.encode node.value
+    BinarySerialize.encode node.id ++
+    BinarySerialize.encode node.afterId ++
+    BinarySerialize.encode node.value
   decode bytes offset := do
     let (id, offset') ← BinarySerialize.decode bytes offset
-    let (value, consumed) ← BinarySerialize.decode bytes offset'
-    return ({ id, value }, consumed)
+    let (afterId, offset'') ← BinarySerialize.decode bytes offset'
+    let (value, consumed) ← BinarySerialize.decode bytes offset''
+    return ({ id, afterId, value }, consumed)
 
 instance [BinarySerialize α] : BinarySerialize (RGA α) where
   encode rga := BinarySerialize.encode rga.nodes

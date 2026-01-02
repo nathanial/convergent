@@ -98,10 +98,28 @@ def set (value : α) (clock : VectorClock) : MVRegisterOp α :=
 private def clocksEquivalent (a b : VectorClock) : Bool :=
   VectorClock.dominates a b && VectorClock.dominates b a
 
-/-- Compare vector clocks for deterministic ordering -/
+/-- Canonical clock entries (sorted by replica id, drop zero times). -/
+private def clockEntries (vc : VectorClock) : List (ReplicaId × Nat) :=
+  let filtered := vc.clocks.toList.filter fun (_, t) => t != 0
+  let sorted := filtered.toArray.qsort fun (r1, _) (r2, _) => r1 < r2
+  sorted.toList
+
+/-- Compare clock entry lists lexicographically. -/
+private def compareEntries : List (ReplicaId × Nat) → List (ReplicaId × Nat) → Ordering
+  | [], [] => .eq
+  | [], _ => .lt
+  | _, [] => .gt
+  | (r1, t1) :: xs, (r2, t2) :: ys =>
+    match compare r1 r2 with
+    | .eq =>
+      match compare t1 t2 with
+      | .eq => compareEntries xs ys
+      | other => other
+    | other => other
+
+/-- Compare vector clocks for deterministic ordering. -/
 private def compareClock (a b : VectorClock) : Ordering :=
-  -- Use string representation for deterministic comparison
-  compare (toString a) (toString b)
+  compareEntries (clockEntries a) (clockEntries b)
 
 /-- Merge two registers (keep all non-dominated values from both).
     Uses deterministic ordering to ensure commutativity. -/
@@ -112,7 +130,7 @@ def merge [BEq α] [Ord α] (a b : MVRegister α) : MVRegister α :=
     match compareClock vc1 vc2 with
     | .lt => true
     | .gt => false
-    | .eq => compare v1 v2 == .lt
+    | .eq => compare v1 v2 == .gt
   -- Remove dominated values, keeping only non-dominated ones
   let filtered := sorted.toList.foldl (init := []) fun acc (v, vc) =>
     if isDominated vc acc then acc
@@ -122,7 +140,7 @@ def merge [BEq α] [Ord α] (a b : MVRegister α) : MVRegister α :=
     match compareClock vc1 vc2 with
     | .lt => true
     | .gt => false
-    | .eq => compare v1 v2 == .lt
+    | .eq => compare v1 v2 == .gt
   { values := result.toList }
 
 instance [BEq α] [Ord α] : CmRDT (MVRegister α) (MVRegisterOp α) where

@@ -79,6 +79,20 @@ test "MVReg later write dominates" := do
     MVRegister.setM "second" vc2
   (reg.get) ≡ ["second"]
 
+test "MVReg equivalent clocks choose stable winner" := do
+  let r1 : ReplicaId := 1
+  let r2 : ReplicaId := 2
+  -- Same logical clock, different construction order
+  let vc12 := VectorClock.empty.inc r1 |>.inc r2
+  let vc21 := VectorClock.empty.inc r2 |>.inc r1
+  let regA := MVRegister.apply MVRegister.empty (MVRegister.set "z" vc12)
+  let regB := MVRegister.apply MVRegister.empty (MVRegister.set "a" vc21)
+  let merged1 := MVRegister.merge regA regB
+  let merged2 := MVRegister.merge regB regA
+  (merged1.get) ≡ (merged2.get)
+  -- Expect deterministic tie-breaker for equivalent clocks
+  (merged1.get) ≡ ["z"]
+
 #generate_tests
 
 end ConvergentTests.RegisterTests

@@ -35,6 +35,25 @@ def mvRegisterEq [BEq α] (a b : MVRegister α) : Bool :=
   aVals.length == bVals.length &&
   aVals.all fun v => bVals.any (· == v)
 
+/-- Compare lists as sets (order-independent, assumes no duplicates) -/
+def listSetEq [BEq α] (a b : List α) : Bool :=
+  a.length == b.length &&
+  a.all fun x => b.any (· == x)
+
+/-- Compare lists of pairs as sets (order-independent, assumes no duplicates) -/
+def pairListSetEq [BEq α] [BEq β] (a b : List (α × β)) : Bool :=
+  a.length == b.length &&
+  a.all fun (x, y) => b.any fun (x2, y2) => x == x2 && y == y2
+
+/-- Union of keys (order-independent) -/
+def unionKeys [BEq κ] (a b : List κ) : List κ :=
+  (a ++ b).foldl (init := []) fun acc k =>
+    if acc.any (· == k) then acc else k :: acc
+
+/-- Compare MVRegisters by values and vector clocks (order-independent) -/
+def mvRegisterStateEq [BEq α] (a b : MVRegister α) : Bool :=
+  pairListSetEq a.getWithClocks b.getWithClocks
+
 /-- Compare GSets by elements (order-independent) -/
 def gsetEq [BEq α] [Hashable α] (a b : GSet α) : Bool :=
   a.size == b.size &&
@@ -54,12 +73,30 @@ def orsetEq [BEq α] [Hashable α] (a b : ORSet α) : Bool :=
   aList.length == bList.length &&
   aList.all fun e => b.contains e
 
+/-- Compare ORSets by tags (state-level, order-independent) -/
+def orsetStateEq [BEq α] [Hashable α] (a b : ORSet α) : Bool :=
+  let aKeys := a.elements.toList.map Prod.fst
+  let bKeys := b.elements.toList.map Prod.fst
+  let keys := unionKeys aKeys bKeys
+  keys.all fun k => listSetEq (a.getTags k) (b.getTags k)
+
 /-- Compare LWWMaps by key-value pairs -/
 def lwwMapEq [BEq κ] [Hashable κ] [BEq α] (a b : LWWMap κ α) : Bool :=
   let aList := a.toList
   let bList := b.toList
   aList.length == bList.length &&
   aList.all fun (k, v) => b.get k == some v
+
+/-- Compare LWWMaps by value and timestamp (state-level) -/
+def lwwMapStateEq [BEq κ] [Hashable κ] [BEq α] (a b : LWWMap κ α) : Bool :=
+  let aKeys := a.entries.toList.map Prod.fst
+  let bKeys := b.entries.toList.map Prod.fst
+  let keys := unionKeys aKeys bKeys
+  keys.all fun k =>
+    match a.entries[k]?, b.entries[k]? with
+    | none, none => true
+    | some (va, tsa), some (vb, tsb) => va == vb && tsa == tsb
+    | _, _ => false
 
 /-- Compare RGAs by visible content -/
 def rgaEq [BEq α] (a b : RGA α) : Bool :=
@@ -75,6 +112,44 @@ def ormapEq [BEq κ] [Hashable κ] (a b : ORMap κ α OpA) : Bool :=
     let bTags := b.getTags k
     aTags.length == bTags.length &&
     aTags.all fun t => bTags.any (· == t)
+
+/-- Compare ORMaps by full entries (state-level, order-independent) -/
+def ormapStateEq [BEq κ] [Hashable κ] [BEq α] (a b : ORMap κ α OpA) : Bool :=
+  let keys := unionKeys a.keys b.keys
+  keys.all fun k => pairListSetEq (a.getEntries k) (b.getEntries k)
+
+/-- ORMap entries are consistent if identical tags map to identical values. -/
+def ormapEntriesConsistent [BEq α] (entries : List (α × UniqueId)) : Bool :=
+  entries.all fun (v, t) =>
+    entries.all fun (v2, t2) => if t == t2 then v == v2 else true
+
+/-- ORMap is well-formed if tags per key are consistent. -/
+def ormapWellFormed [BEq κ] [Hashable κ] [BEq α] (m : ORMap κ α OpA) : Bool :=
+  m.keys.all fun k => ormapEntriesConsistent (m.getEntries k)
+
+/-- ORMap ops are compatible if duplicate puts with same key/tag agree on value. -/
+def ormapOpsCompatible [BEq κ] [BEq α] (op1 op2 : ORMapOp κ α OpA) : Bool :=
+  match op1, op2 with
+  | .put k1 v1 t1, .put k2 v2 t2 =>
+    if k1 == k2 && t1 == t2 then v1 == v2 else true
+  | _, _ => true
+
+/-- ORMap states are compatible if identical tags map to identical values. -/
+def ormapCompatible [BEq κ] [Hashable κ] [BEq α] (a b : ORMap κ α OpA) : Bool :=
+  let keys := unionKeys a.keys b.keys
+  keys.all fun k =>
+    let entriesA := a.getEntries k
+    let entriesB := b.getEntries k
+    entriesA.all fun (vA, tA) =>
+      entriesB.all fun (vB, tB) => if tA == tB then vA == vB else true
+
+/-- ORMap op is compatible with state if existing tag/value pairs are consistent. -/
+def ormapOpCompatibleWithState [BEq κ] [Hashable κ] [BEq α] (m : ORMap κ α OpA) (op : ORMapOp κ α OpA) : Bool :=
+  match op with
+  | .put k v tag =>
+    let entries := m.getEntries k
+    entries.all fun (v2, t2) => if t2 == tag then v2 == v else true
+  | _ => true
 
 /-- Compare EWFlags by enabled/disabled sets -/
 def ewflagEq (a b : EWFlag) : Bool :=
@@ -792,6 +867,8 @@ instance : Arbitrary (TwoPGraphOp Nat) where
   mvRegisterEq (MVRegister.merge (MVRegister.merge a b) c)
                (MVRegister.merge a (MVRegister.merge b c))
 #test ∀ (a : MVRegister Nat), mvRegisterEq (MVRegister.merge a a) a
+-- MVRegister Merge Laws (state-level)
+#test ∀ (a b : MVRegister Nat), mvRegisterStateEq (MVRegister.merge a b) (MVRegister.merge b a)
 
 -- GSet Merge Laws
 #test ∀ (a b : GSet Nat), gsetEq (GSet.merge a b) (GSet.merge b a)
@@ -813,6 +890,8 @@ instance : Arbitrary (TwoPGraphOp Nat) where
   orsetEq (ORSet.merge (ORSet.merge a b) c)
           (ORSet.merge a (ORSet.merge b c))
 #test ∀ (a : ORSet Nat), orsetEq (ORSet.merge a a) a
+-- ORSet Merge Laws (state-level)
+#test ∀ (a b : ORSet Nat), orsetStateEq (ORSet.merge a b) (ORSet.merge b a)
 
 -- LWWMap Merge Laws
 #test ∀ (a b : LWWMap Nat Nat), lwwMapEq (LWWMap.merge a b) (LWWMap.merge b a)
@@ -820,6 +899,8 @@ instance : Arbitrary (TwoPGraphOp Nat) where
   lwwMapEq (LWWMap.merge (LWWMap.merge a b) c)
            (LWWMap.merge a (LWWMap.merge b c))
 #test ∀ (a : LWWMap Nat Nat), lwwMapEq (LWWMap.merge a a) a
+-- LWWMap Merge Laws (state-level)
+#test ∀ (a b : LWWMap Nat Nat), lwwMapStateEq (LWWMap.merge a b) (LWWMap.merge b a)
 
 -- RGA Merge Laws
 #test ∀ (a b : RGA Nat), rgaEq (RGA.merge a b) (RGA.merge b a)
@@ -834,6 +915,12 @@ instance : Arbitrary (TwoPGraphOp Nat) where
   ormapEq (ORMap.merge (ORMap.merge a b) c)
           (ORMap.merge a (ORMap.merge b c))
 #test ∀ (a : ORMap Nat Nat Unit), ormapEq (ORMap.merge a a) a
+-- ORMap Merge Laws (state-level)
+#test ∀ (a b : ORMap Nat Nat Unit),
+  if ormapWellFormed a && ormapWellFormed b && ormapCompatible a b then
+    ormapStateEq (ORMap.merge a b) (ORMap.merge b a)
+  else
+    true
 
 -- EWFlag Merge Laws
 #test ∀ (a b : EWFlag), ewflagEq (EWFlag.merge a b) (EWFlag.merge b a)
@@ -915,16 +1002,28 @@ instance : Arbitrary (TwoPGraphOp Nat) where
 #test ∀ (s : MVRegister Nat) (op1 op2 : MVRegisterOp Nat),
   mvRegisterEq (MVRegister.apply (MVRegister.apply s op1) op2)
                (MVRegister.apply (MVRegister.apply s op2) op1)
+-- MVRegister apply commutes (state-level)
+#test ∀ (s : MVRegister Nat) (op1 op2 : MVRegisterOp Nat),
+  mvRegisterStateEq (MVRegister.apply (MVRegister.apply s op1) op2)
+                    (MVRegister.apply (MVRegister.apply s op2) op1)
 
 -- ORSet apply commutes
 #test ∀ (s : ORSet Nat) (op1 op2 : ORSetOp Nat),
   orsetEq (ORSet.apply (ORSet.apply s op1) op2)
           (ORSet.apply (ORSet.apply s op2) op1)
+-- ORSet apply commutes (state-level)
+#test ∀ (s : ORSet Nat) (op1 op2 : ORSetOp Nat),
+  orsetStateEq (ORSet.apply (ORSet.apply s op1) op2)
+               (ORSet.apply (ORSet.apply s op2) op1)
 
 -- LWWMap apply commutes
 #test ∀ (s : LWWMap Nat Nat) (op1 op2 : LWWMapOp Nat Nat),
   lwwMapEq (LWWMap.apply (LWWMap.apply s op1) op2)
            (LWWMap.apply (LWWMap.apply s op2) op1)
+-- LWWMap apply commutes (state-level)
+#test ∀ (s : LWWMap Nat Nat) (op1 op2 : LWWMapOp Nat Nat),
+  lwwMapStateEq (LWWMap.apply (LWWMap.apply s op1) op2)
+                (LWWMap.apply (LWWMap.apply s op2) op1)
 
 -- RGA apply commutes
 #test ∀ (s : RGA Nat) (op1 op2 : RGAOp Nat),
@@ -935,6 +1034,16 @@ instance : Arbitrary (TwoPGraphOp Nat) where
 #test ∀ (s : ORMap Nat Nat Unit) (op1 op2 : ORMapOp Nat Nat Unit),
   ormapEq (ORMap.apply (ORMap.apply s op1) op2)
           (ORMap.apply (ORMap.apply s op2) op1)
+-- ORMap apply commutes (state-level)
+#test ∀ (s : ORMap Nat Nat Unit) (op1 op2 : ORMapOp Nat Nat Unit),
+  if ormapWellFormed s
+      && ormapOpsCompatible op1 op2
+      && ormapOpCompatibleWithState s op1
+      && ormapOpCompatibleWithState s op2 then
+    ormapStateEq (ORMap.apply (ORMap.apply s op1) op2)
+                 (ORMap.apply (ORMap.apply s op2) op1)
+  else
+    true
 
 -- EWFlag apply commutes
 #test ∀ (s : EWFlag) (op1 op2 : EWFlagOp),

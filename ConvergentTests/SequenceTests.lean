@@ -39,6 +39,15 @@ test "RGA insert after element" := do
     |> fun s => RGA.apply s (RGA.insert (some id1) "second" id2)
   (rga.toList) ≡ ["first", "second"]
 
+test "RGA insert after preserves relative order even if ids conflict" := do
+  let r1 : ReplicaId := 1
+  let id1 := UniqueId.new r1 2
+  let id2 := UniqueId.new r1 1
+  let rga := RGA.empty
+    |> fun s => RGA.apply s (RGA.insert none "first" id1)
+    |> fun s => RGA.apply s (RGA.insert (some id1) "second" id2)
+  (rga.toList) ≡ ["first", "second"]
+
 test "RGA delete marks tombstone" := do
   let r1 : ReplicaId := 1
   let id1 := UniqueId.new r1 0
