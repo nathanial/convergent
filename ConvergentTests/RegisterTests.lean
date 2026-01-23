@@ -93,6 +93,4 @@ test "MVReg equivalent clocks choose stable winner" := do
   -- Expect deterministic tie-breaker for equivalent clocks
   (merged1.get) ≡ ["z"]
 
-#generate_tests
-
 end ConvergentTests.RegisterTests

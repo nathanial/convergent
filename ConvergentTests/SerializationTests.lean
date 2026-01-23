@@ -287,6 +287,4 @@ test "Pair round-trip" := do
 test "Array round-trip" := do
   (roundTripOk #[1, 2, 3]) ≡ true
 
-#generate_tests
-
 end ConvergentTests.SerializationTests

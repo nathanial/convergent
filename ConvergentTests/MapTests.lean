@@ -322,6 +322,4 @@ test "PNMap merge different keys" := do
   (merged.get "a") ≡ 1
   (merged.get "b") ≡ 1
 
-#generate_tests
-
 end ConvergentTests.MapTests

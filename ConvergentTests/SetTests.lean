@@ -215,6 +215,4 @@ test "LWWElementSet merge takes higher timestamp" := do
   let merged := LWWElementSet.merge setA setB
   (merged.contains 42) ≡ false  -- ts2 > ts1, so remove wins
 
-#generate_tests
-
 end ConvergentTests.SetTests

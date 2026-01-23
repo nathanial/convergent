@@ -1008,6 +1008,4 @@ test "contrast with EWFlag - different semantics" := do
   (dwMerged.value) ≡ false  -- DWFlag: disable wins
   (ewMerged.value) ≡ true   -- EWFlag: enable wins
 
-#generate_tests
-
 end ConvergentTests.ScenarioTests

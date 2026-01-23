@@ -124,6 +124,4 @@ test "DWFlag disable without enable is false" := do
     DWFlag.disableM r1
   (f.value) ≡ false
 
-#generate_tests
-
 end ConvergentTests.FlagTests

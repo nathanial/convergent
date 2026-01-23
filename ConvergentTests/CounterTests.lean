@@ -83,6 +83,4 @@ test "PNCounter concurrent ops" := do
     PNCounter.incM r1
   (pn.value) ≡ 1
 
-#generate_tests
-
 end ConvergentTests.CounterTests

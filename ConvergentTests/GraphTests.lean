@@ -121,6 +121,4 @@ test "TwoPGraph merge remove wins" := do
   let merged := TwoPGraph.merge g1 g2
   (merged.containsVertex 1) ≡ false
 
-#generate_tests
-
 end ConvergentTests.GraphTests

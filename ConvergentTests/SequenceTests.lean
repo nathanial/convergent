@@ -335,6 +335,4 @@ test "Fugue delete makes element invisible but keeps ID" := do
   (f'.containsId id) ≡ true
   (f'.length) ≡ 0
 
-#generate_tests
-
 end ConvergentTests.SequenceTests
