@@ -188,6 +188,17 @@ test "LSEQ position ordering" := do
   -- Elements should be ordered by position: 5, 10, 15
   (lseq.toList) ≡ ["first", "mid", "last"]
 
+test "LSEQ allocateBetween stays between equal-pos bounds" := do
+  let r1 : ReplicaId := 1
+  let r2 : ReplicaId := 2
+  let r3 : ReplicaId := 3
+  let lower : LSEQId := { levels := [{ pos := 5, site := r1 }] }
+  let upper : LSEQId := { levels := [{ pos := 5, site := r2 }] }
+  let newId := LSEQ.allocateBetween r3 (some lower) (some upper)
+  (compare lower newId == .lt) ≡ true
+  (compare newId upper == .lt) ≡ true
+  (newId.levels.head?.map (·.site)) ≡ some r1
+
 -- Fugue Tests
 
 testSuite "Fugue"
@@ -334,5 +345,57 @@ test "Fugue delete makes element invisible but keeps ID" := do
   let f' := Fugue.apply f (Fugue.delete id)
   (f'.containsId id) ≡ true
   (f'.length) ≡ 0
+
+test "Fugue handles parent cycles without looping" := do
+  let r1 : ReplicaId := 1
+  let id1 := FugueId.mk r1 1
+  let id2 := FugueId.mk r1 2
+  let node1 : FugueNode String := {
+    id := id1
+    value := some "a"
+    parent := some id2
+    side := .right
+    leftOrigin := none
+    rightOrigin := none
+  }
+  let node2 : FugueNode String := {
+    id := id2
+    value := some "b"
+    parent := some id1
+    side := .right
+    leftOrigin := none
+    rightOrigin := none
+  }
+  let f := Fugue.empty
+    |> fun s => Fugue.apply s (Fugue.insert node1)
+    |> fun s => Fugue.apply s (Fugue.insert node2)
+  let values := f.toList
+  (decide (values.length <= 2)) ≡ true
+  (Fugue.isAncestor f id1 id2) ≡ true
+
+test "Fugue ignores unreachable cycles in toList" := do
+  let r1 : ReplicaId := 1
+  let id1 := FugueId.mk r1 1
+  let id2 := FugueId.mk r1 2
+  let node1 : FugueNode String := {
+    id := id1
+    value := some "a"
+    parent := some id2
+    side := .right
+    leftOrigin := none
+    rightOrigin := none
+  }
+  let node2 : FugueNode String := {
+    id := id2
+    value := some "b"
+    parent := some id1
+    side := .right
+    leftOrigin := none
+    rightOrigin := none
+  }
+  let f := Fugue.empty
+    |> fun s => Fugue.apply s (Fugue.insert node1)
+    |> fun s => Fugue.apply s (Fugue.insert node2)
+  (f.toList) ≡ ([] : List String)
 
 end ConvergentTests.SequenceTests

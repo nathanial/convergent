@@ -184,8 +184,20 @@ where
       let newLevel : LSEQLevel := { pos := newPos, site := replica }
       { levels := prefix_ ++ [newLevel] }
     else
-      -- No space: descend to next depth
-      let currentLevel : LSEQLevel := { pos := lowerPos, site := replica }
+      -- No space: descend to next depth, preserving the lower-bound level when available
+      let currentLevel : LSEQLevel :=
+        match lower with
+        | some id =>
+          match id.getLevelAt depth with
+          | some level => level
+          | none => { pos := lowerPos, site := replica }
+        | none =>
+          match upper with
+          | some id =>
+            match id.getLevelAt depth with
+            | some level => { pos := lowerPos, site := level.site }
+            | none => { pos := lowerPos, site := replica }
+          | none => { pos := lowerPos, site := replica }
       -- Keep the lower/upper bounds - getPosAt will return defaults for missing levels
       allocateAtDepth replica lower upper (depth + 1) (prefix_ ++ [currentLevel])
 
