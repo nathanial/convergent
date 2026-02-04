@@ -398,4 +398,39 @@ test "Fugue ignores unreachable cycles in toList" := do
     |> fun s => Fugue.apply s (Fugue.insert node2)
   (f.toList) ≡ ([] : List String)
 
+test "Fugue ignores unreachable cycle but keeps reachable nodes" := do
+  let r1 : ReplicaId := 1
+  let rootId := FugueId.mk r1 10
+  let root : FugueNode String := {
+    id := rootId
+    value := some "root"
+    parent := none
+    side := .right
+    leftOrigin := none
+    rightOrigin := none
+  }
+  let cycleId1 := FugueId.mk r1 1
+  let cycleId2 := FugueId.mk r1 2
+  let cycleNode1 : FugueNode String := {
+    id := cycleId1
+    value := some "cycle-a"
+    parent := some cycleId2
+    side := .right
+    leftOrigin := none
+    rightOrigin := none
+  }
+  let cycleNode2 : FugueNode String := {
+    id := cycleId2
+    value := some "cycle-b"
+    parent := some cycleId1
+    side := .right
+    leftOrigin := none
+    rightOrigin := none
+  }
+  let f := Fugue.empty
+    |> fun s => Fugue.apply s (Fugue.insert root)
+    |> fun s => Fugue.apply s (Fugue.insert cycleNode1)
+    |> fun s => Fugue.apply s (Fugue.insert cycleNode2)
+  (f.toList) ≡ ["root"]
+
 end ConvergentTests.SequenceTests
