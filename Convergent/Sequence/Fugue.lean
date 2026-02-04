@@ -20,6 +20,7 @@ import Convergent.Core.CmRDT
 import Convergent.Core.Monad
 import Convergent.Core.ReplicaId
 import Std.Data.HashMap
+import Std.Data.HashSet
 
 namespace Convergent
 
@@ -148,24 +149,48 @@ private def sortSiblings (siblings : List (FugueNode α)) (side : FugueSide)
   sorted.toList
 
 /-- Traverse the tree in-order to get document ordering.
-    For each node: left subtree, then node, then right subtree -/
+    For each node: left subtree, then node, then right subtree.
+    Guard against parent cycles by tracking visited nodes. -/
 partial def traverse (fugue : Fugue α) : List (FugueNode α) :=
-  -- Visit a single node with proper in-order traversal
-  let rec visitNode (node : FugueNode α) : List (FugueNode α) :=
-    let leftChildren := sortSiblings (getChildren fugue (some node.id) .left) .left
-    let rightChildren := sortSiblings (getChildren fugue (some node.id) .right) .right
-
-    let leftPart := leftChildren.flatMap visitNode
-    let rightPart := rightChildren.flatMap visitNode
-
-    leftPart ++ [node] ++ rightPart
+  -- Visit a single node with proper in-order traversal, tracking visited IDs.
+  let rec visitNode (node : FugueNode α) (visited : Std.HashSet FugueId)
+      : List (FugueNode α) × Std.HashSet FugueId :=
+    if visited.contains node.id then
+      ([], visited)
+    else
+      let visited' := visited.insert node.id
+      let leftChildren := sortSiblings (getChildren fugue (some node.id) .left) .left
+      let rightChildren := sortSiblings (getChildren fugue (some node.id) .right) .right
+      let (leftPart, visited'') :=
+        leftChildren.foldl
+          (init := ([], visited'))
+          (fun (acc, vis) child =>
+            let (part, vis') := visitNode child vis
+            (acc ++ part, vis'))
+      let (rightPart, visited''') :=
+        rightChildren.foldl
+          (init := ([], visited''))
+          (fun (acc, vis) child =>
+            let (part, vis') := visitNode child vis
+            (acc ++ part, vis'))
+      (leftPart ++ [node] ++ rightPart, visited''')
+  -- Visit a list of nodes, threading the visited set.
+  let visitNodes (nodes : List (FugueNode α)) (visited : Std.HashSet FugueId)
+      : List (FugueNode α) × Std.HashSet FugueId :=
+    nodes.foldl
+      (init := ([], visited))
+      (fun (acc, vis) node =>
+        let (part, vis') := visitNode node vis
+        (acc ++ part, vis'))
 
   -- Start from virtual root (parent = none)
   let rootLeftChildren := sortSiblings (getChildren fugue none .left) .left
   let rootRightChildren := sortSiblings (getChildren fugue none .right) .right
 
   -- Visit all root children
-  (rootLeftChildren.flatMap visitNode) ++ (rootRightChildren.flatMap visitNode)
+  let (leftPart, visited) := visitNodes rootLeftChildren {}
+  let (rightPart, _) := visitNodes rootRightChildren visited
+  leftPart ++ rightPart
 
 /-- Get all visible values in document order -/
 def toList (fugue : Fugue α) : List α :=
@@ -184,16 +209,22 @@ def getIdAt (fugue : Fugue α) (index : Nat) : Option FugueId :=
   let visible := fugue.traverse.filter fun node => node.value.isSome
   visible[index]?.map fun node => node.id
 
-/-- Check if id1 is an ancestor of id2 by walking up parent pointers -/
+/-- Check if id1 is an ancestor of id2 by walking up parent pointers.
+    Guard against parent cycles by tracking visited IDs. -/
 partial def isAncestor (fugue : Fugue α) (ancestorId childId : FugueId) : Bool :=
-  if ancestorId == childId then true
-  else
-    match fugue.getNode childId with
-    | none => false
-    | some node =>
-      match node.parent with
+  let rec go (currentId : FugueId) (visited : Std.HashSet FugueId) : Bool :=
+    if visited.contains currentId then
+      false
+    else if ancestorId == currentId then
+      true
+    else
+      match fugue.getNode currentId with
       | none => false
-      | some parentId => isAncestor fugue ancestorId parentId
+      | some node =>
+        match node.parent with
+        | none => false
+        | some parentId => go parentId (visited.insert currentId)
+  go childId {}
 
 /-- Determine parent and side for a new insertion between leftOrigin and rightOrigin -/
 def determineParentAndSide (fugue : Fugue α) (leftOrigin rightOrigin : Option FugueId)
