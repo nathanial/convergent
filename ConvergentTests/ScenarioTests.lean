@@ -950,41 +950,41 @@ test "delete from middle" := do
 
 /-! ## Emergency Stop with DWFlag
 
-Safety-critical kill switch where disable-wins ensures the system
-stays stopped once any node triggers the emergency stop.
+Safety-critical kill switch where concurrent disables win, but a later
+explicit enable can resume the system.
 -/
 
 testSuite "Emergency Stop (DWFlag)"
 
-test "emergency stop stays off once triggered" := do
+test "emergency stop disable wins on concurrent, later enable resumes" := do
   let sensor1 : ReplicaId := 1
   let sensor2 : ReplicaId := 2
 
   -- System is running (enabled)
-  let running := DWFlag.apply DWFlag.empty (DWFlag.enable sensor1)
+  let running := DWFlag.apply DWFlag.empty (DWFlag.enable (LamportTs.new 1 sensor1))
 
   (running.value) ≡ true
 
   -- Sensor 2 triggers emergency stop
-  let stopped := DWFlag.apply running (DWFlag.disable sensor2)
+  let stopped := DWFlag.apply running (DWFlag.disable (LamportTs.new 2 sensor2))
 
-  -- Disable-wins: system stays stopped
+  -- Later disable wins: system stopped
   (stopped.value) ≡ false
 
-  -- Even if sensor 1 tries to re-enable
-  let stillStopped := DWFlag.apply stopped (DWFlag.enable sensor1)
+  -- Later enable can resume
+  let resumed := DWFlag.apply stopped (DWFlag.enable (LamportTs.new 3 sensor1))
 
-  (stillStopped.value) ≡ false
+  (resumed.value) ≡ true
 
 test "concurrent enable and disable - disable wins" := do
   let node1 : ReplicaId := 1
   let node2 : ReplicaId := 2
 
   -- Node 1 enables
-  let enabled := DWFlag.apply DWFlag.empty (DWFlag.enable node1)
+  let enabled := DWFlag.apply DWFlag.empty (DWFlag.enable (LamportTs.new 1 node1))
 
   -- Node 2 disables (concurrent)
-  let disabled := DWFlag.apply DWFlag.empty (DWFlag.disable node2)
+  let disabled := DWFlag.apply DWFlag.empty (DWFlag.disable (LamportTs.new 1 node2))
 
   -- Merge: disable wins
   let merged := DWFlag.merge enabled disabled
@@ -996,8 +996,8 @@ test "contrast with EWFlag - different semantics" := do
   let node2 : ReplicaId := 2
 
   -- DWFlag: disable-wins (safety-critical, conservative)
-  let dwEnabled := DWFlag.apply DWFlag.empty (DWFlag.enable node1)
-  let dwDisabled := DWFlag.apply DWFlag.empty (DWFlag.disable node2)
+  let dwEnabled := DWFlag.apply DWFlag.empty (DWFlag.enable (LamportTs.new 1 node1))
+  let dwDisabled := DWFlag.apply DWFlag.empty (DWFlag.disable (LamportTs.new 1 node2))
   let dwMerged := DWFlag.merge dwEnabled dwDisabled
 
   -- EWFlag: enable-wins (availability-focused)

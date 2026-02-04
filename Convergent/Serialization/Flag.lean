@@ -43,23 +43,26 @@ instance : BinarySerialize EWFlagOp where
 
 instance : BinarySerialize DWFlag where
   encode f :=
-    BinarySerialize.encode f.enabled ++ BinarySerialize.encode f.disabled
+    BinarySerialize.encode f.lastEnable ++ BinarySerialize.encode f.lastDisable
   decode bytes offset := do
-    let (enabled, offset') ← BinarySerialize.decode bytes offset
-    let (disabled, consumed) ← BinarySerialize.decode bytes offset'
-    return ({ enabled, disabled }, consumed)
+    let (lastEnable, offset') ← BinarySerialize.decode bytes offset
+    let (lastDisable, consumed) ← BinarySerialize.decode bytes offset'
+    return ({ lastEnable, lastDisable }, consumed)
 
 instance : BinarySerialize DWFlagOp where
   encode op := match op with
-    | .enable replica => ByteArray.mk #[0] ++ BinarySerialize.encode replica
-    | .disable replica => ByteArray.mk #[1] ++ BinarySerialize.encode replica
+    | .enable timestamp => ByteArray.mk #[0] ++ BinarySerialize.encode timestamp
+    | .disable timestamp => ByteArray.mk #[1] ++ BinarySerialize.encode timestamp
   decode bytes offset := do
     guard (offset < bytes.size)
     let tag := bytes.get! offset
-    let (replica, consumed) ← BinarySerialize.decode bytes (offset + 1)
     match tag with
-    | 0 => return (.enable replica, consumed)
-    | 1 => return (.disable replica, consumed)
+    | 0 =>
+      let (timestamp, consumed) ← BinarySerialize.decode bytes (offset + 1)
+      return (.enable timestamp, consumed)
+    | 1 =>
+      let (timestamp, consumed) ← BinarySerialize.decode bytes (offset + 1)
+      return (.disable timestamp, consumed)
     | _ => none
 
 end Convergent.Serialization

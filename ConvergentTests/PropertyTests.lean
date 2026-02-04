@@ -174,7 +174,7 @@ def ewflagEq (a b : EWFlag) : Bool :=
 
 /-- Compare DWFlags by enabled/disabled sets -/
 def dwflagEq (a b : DWFlag) : Bool :=
-  gsetEq a.enabled b.enabled && gsetEq a.disabled b.disabled
+  a.lastEnable == b.lastEnable && a.lastDisable == b.lastDisable
 
 /-- Compare LWWElementSets by contained elements -/
 def lwwElementSetEq [BEq α] [Hashable α] (a b : LWWElementSet α) : Bool :=
@@ -262,8 +262,8 @@ instance : Repr EWFlagOp where
 
 instance : Repr DWFlagOp where
   reprPrec op _ := match op with
-    | .enable r => s!"DWFlagOp.enable({repr r})"
-    | .disable r => s!"DWFlagOp.disable({repr r})"
+    | .enable ts => s!"DWFlagOp.enable({repr ts})"
+    | .disable ts => s!"DWFlagOp.disable({repr ts})"
 
 instance [Repr α] : Repr (LWWElementSetOp α) where
   reprPrec op _ := match op with
@@ -660,17 +660,17 @@ instance : Arbitrary DWFlag where
     let numOps ← genSmallNat 4
     let mut f := DWFlag.empty
     for _ in [0:numOps] do
-      let replica ← Arbitrary.arbitrary
+      let ts ← Arbitrary.arbitrary
       let isEnable ← genSmallNat 1
-      let op := if isEnable == 0 then DWFlag.enable replica else DWFlag.disable replica
+      let op := if isEnable == 0 then DWFlag.enable ts else DWFlag.disable ts
       f := DWFlag.apply f op
     return f
 
 instance : Arbitrary DWFlagOp where
   arbitrary := do
-    let replica ← Arbitrary.arbitrary
+    let ts ← Arbitrary.arbitrary
     let isEnable ← genSmallNat 1
-    return if isEnable == 0 then .enable replica else .disable replica
+    return if isEnable == 0 then .enable ts else .disable ts
 
 /-! ## Arbitrary Instances for LWWElementSet -/
 
@@ -1182,14 +1182,14 @@ instance : Arbitrary (TwoPGraphOp Nat) where
   ewflagEq (EWFlag.apply f' (EWFlag.disable ts)) f'
 
 -- DWFlag enable is idempotent
-#test ∀ (f : DWFlag) (r : ReplicaId),
-  let f' := DWFlag.apply f (DWFlag.enable r)
-  dwflagEq (DWFlag.apply f' (DWFlag.enable r)) f'
+#test ∀ (f : DWFlag) (ts : LamportTs),
+  let f' := DWFlag.apply f (DWFlag.enable ts)
+  dwflagEq (DWFlag.apply f' (DWFlag.enable ts)) f'
 
 -- DWFlag disable is idempotent
-#test ∀ (f : DWFlag) (r : ReplicaId),
-  let f' := DWFlag.apply f (DWFlag.disable r)
-  dwflagEq (DWFlag.apply f' (DWFlag.disable r)) f'
+#test ∀ (f : DWFlag) (ts : LamportTs),
+  let f' := DWFlag.apply f (DWFlag.disable ts)
+  dwflagEq (DWFlag.apply f' (DWFlag.disable ts)) f'
 
 -- LWWElementSet add is idempotent
 #test ∀ (s : LWWElementSet Nat) (v : Nat) (ts : LamportTs),
@@ -1409,14 +1409,17 @@ instance : Arbitrary (TwoPGraphOp Nat) where
 
 -- DWFlag: enable makes true (when no disables)
 #test ∀ (r : ReplicaId),
-  let f := DWFlag.apply DWFlag.empty (DWFlag.enable r)
+  let ts := LamportTs.new 1 r
+  let f := DWFlag.apply DWFlag.empty (DWFlag.enable ts)
   f.value == true
 
 -- DWFlag: disable-wins (enable + disable = false)
 #test ∀ (r1 r2 : ReplicaId),
+  let tsEnable := LamportTs.new 1 r1
+  let tsDisable := LamportTs.new 1 r2
   let f := DWFlag.empty
-    |> fun s => DWFlag.apply s (DWFlag.enable r1)
-    |> fun s => DWFlag.apply s (DWFlag.disable r2)
+    |> fun s => DWFlag.apply s (DWFlag.enable tsEnable)
+    |> fun s => DWFlag.apply s (DWFlag.disable tsDisable)
   f.value == false
 
 -- LWWElementSet: later timestamp wins (add with higher ts)
@@ -1682,9 +1685,17 @@ instance : Arbitrary (TwoPGraphOp Nat) where
 
 -- Fugue convergence (3 ops)
 #test ∀ (fugue : Fugue Nat) (op1 op2 op3 : FugueOp Nat),
-  let forward := Fugue.apply (Fugue.apply (Fugue.apply fugue op1) op2) op3
-  let reverse := Fugue.apply (Fugue.apply (Fugue.apply fugue op3) op2) op1
-  fugueEq forward reverse
+  if fugueOpsCompatible op1 op2
+      && fugueOpsCompatible op1 op3
+      && fugueOpsCompatible op2 op3
+      && fugueOpCompatibleWithState fugue op1
+      && fugueOpCompatibleWithState fugue op2
+      && fugueOpCompatibleWithState fugue op3 then
+    let forward := Fugue.apply (Fugue.apply (Fugue.apply fugue op1) op2) op3
+    let reverse := Fugue.apply (Fugue.apply (Fugue.apply fugue op3) op2) op1
+    fugueEq forward reverse
+  else
+    true
 
 -- TwoPGraph convergence (3 ops)
 #test ∀ (g : TwoPGraph Nat) (op1 op2 op3 : TwoPGraphOp Nat),

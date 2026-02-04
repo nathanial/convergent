@@ -175,7 +175,8 @@ test "EWFlag round-trip enabled" := do
   | none => (false) ≡ true
 
 test "DWFlag round-trip" := do
-  let f := DWFlag.empty |> fun f => DWFlag.apply f (DWFlag.enable (ReplicaId.mk 1))
+  let ts := LamportTs.new 1 (ReplicaId.mk 1)
+  let f := DWFlag.empty |> fun f => DWFlag.apply f (DWFlag.enable ts)
   match BinarySerialize.roundTrip f with
   | some decoded => (decoded.value) ≡ f.value
   | none => (false) ≡ true

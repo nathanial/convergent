@@ -81,42 +81,51 @@ test "DWFlag empty is false" := do
 
 test "DWFlag enable makes true" := do
   let r1 : ReplicaId := 1
+  let ts1 := LamportTs.new 1 r1
   let f := runCRDT DWFlag.empty do
-    DWFlag.enableM r1
+    DWFlag.enableM ts1
   (f.value) ≡ true
 
 test "DWFlag disable after enable makes false (disable-wins)" := do
   let r1 : ReplicaId := 1
+  let tsEnable := LamportTs.new 1 r1
+  let tsDisable := LamportTs.new 2 r1
   let f := runCRDT DWFlag.empty do
-    DWFlag.enableM r1
-    DWFlag.disableM r1
+    DWFlag.enableM tsEnable
+    DWFlag.disableM tsDisable
   (f.value) ≡ false
 
-test "DWFlag enable after disable stays false" := do
+test "DWFlag enable after disable is true (later enable)" := do
   let r1 : ReplicaId := 1
+  let tsDisable := LamportTs.new 1 r1
+  let tsEnable := LamportTs.new 2 r1
   let f := runCRDT DWFlag.empty do
-    DWFlag.disableM r1
-    DWFlag.enableM r1
-  (f.value) ≡ false
+    DWFlag.disableM tsDisable
+    DWFlag.enableM tsEnable
+  (f.value) ≡ true
 
 test "DWFlag concurrent enable + disable is false" := do
   let r1 : ReplicaId := 1
   let r2 : ReplicaId := 2
+  let tsEnable := LamportTs.new 1 r1
+  let tsDisable := LamportTs.new 1 r2
   -- Simulate concurrent: r1 enables, r2 disables
   let f := runCRDT DWFlag.empty do
-    DWFlag.enableM r1
-    DWFlag.disableM r2
+    DWFlag.enableM tsEnable
+    DWFlag.disableM tsDisable
   (f.value) ≡ false
 
 test "DWFlag merge preserves disable-wins" := do
   let r1 : ReplicaId := 1
   let r2 : ReplicaId := 2
+  let tsEnable := LamportTs.new 1 r1
+  let tsDisable := LamportTs.new 1 r2
   -- f1: enabled by r1
   let f1 := runCRDT DWFlag.empty do
-    DWFlag.enableM r1
+    DWFlag.enableM tsEnable
   -- f2: disabled by r2
   let f2 := runCRDT DWFlag.empty do
-    DWFlag.disableM r2
+    DWFlag.disableM tsDisable
   -- Merged: should be false (disable-wins)
   let merged := DWFlag.merge f1 f2
   (merged.value) ≡ false
@@ -124,15 +133,18 @@ test "DWFlag merge preserves disable-wins" := do
 test "DWFlag only enable no disable is true" := do
   let r1 : ReplicaId := 1
   let r2 : ReplicaId := 2
+  let ts1 := LamportTs.new 1 r1
+  let ts2 := LamportTs.new 2 r2
   let f := runCRDT DWFlag.empty do
-    DWFlag.enableM r1
-    DWFlag.enableM r2
+    DWFlag.enableM ts1
+    DWFlag.enableM ts2
   (f.value) ≡ true
 
 test "DWFlag disable without enable is false" := do
   let r1 : ReplicaId := 1
+  let ts1 := LamportTs.new 1 r1
   let f := runCRDT DWFlag.empty do
-    DWFlag.disableM r1
+    DWFlag.disableM ts1
   (f.value) ≡ false
 
 end ConvergentTests.FlagTests
