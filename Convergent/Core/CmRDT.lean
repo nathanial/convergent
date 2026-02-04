@@ -49,27 +49,30 @@ class CmRDTQuery (S : Type u) (Op : Type v) (Q : Type w) extends CmRDT S Op wher
 /-! ## Trivial CmRDT instances for simple immutable types
 
 These allow using simple types as values in nested CRDT structures like ORMap.
-Operations are no-ops, merge keeps the first value (since values are immutable).
+Operations are no-ops. Merge picks the maximum value by the type's ordering to
+ensure commutativity and deterministic convergence if replicas diverge.
 -/
 
 instance : CmRDT Nat Unit where
   empty := 0
   apply n _ := n
-  merge a _ := a
+  merge a b := if a <= b then b else a
 
 instance : CmRDT Int Unit where
   empty := 0
   apply n _ := n
-  merge a _ := a
+  merge a b := if a <= b then b else a
 
 instance : CmRDT String Unit where
   empty := ""
   apply s _ := s
-  merge a _ := a
+  merge a b := match compare a b with
+    | .lt => b
+    | _ => a
 
 instance : CmRDT Bool Unit where
   empty := false
   apply b _ := b
-  merge a _ := a
+  merge a b := a || b
 
 end Convergent
