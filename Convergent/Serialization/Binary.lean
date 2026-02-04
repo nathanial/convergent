@@ -101,7 +101,7 @@ instance : BinarySerialize Char where
   encode c := encodeNat c.toNat
   decode bytes offset := do
     let (n, consumed) ← decodeNat bytes offset
-    if h : n < UInt32.size then
+    if n < UInt32.size then
       return (Char.ofNat n, consumed)
     else
       none

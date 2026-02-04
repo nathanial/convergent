@@ -153,7 +153,8 @@ test "duplicate operations don't double count" := do
 
 Track if a user is online across multiple devices.
 EWFlag (enable-wins) ensures that if any device is online, user shows online.
-Note: EWFlag is quite simple - once enabled by any replica, it stays enabled.
+Note: EWFlag is timestamp-based - concurrent enable/disable resolves to enabled,
+but a later disable can turn the flag off.
 -/
 
 testSuite "User Presence (EWFlag)"
@@ -163,30 +164,30 @@ test "user online on phone, offline on laptop - shows online" := do
   let laptop : ReplicaId := 2
 
   -- Phone enables (user active)
-  let phoneStatus := EWFlag.apply EWFlag.empty (EWFlag.enable phone)
+  let phoneTs := LamportTs.new 1 phone
+  let phoneStatus := EWFlag.apply EWFlag.empty (EWFlag.enable phoneTs)
 
   -- Laptop disables (user closed app, concurrent)
-  let laptopStatus := EWFlag.apply EWFlag.empty (EWFlag.disable laptop)
+  let laptopTs := LamportTs.new 1 laptop
+  let laptopStatus := EWFlag.apply EWFlag.empty (EWFlag.disable laptopTs)
 
   -- Merge: enable wins - user is online
   let merged := EWFlag.merge phoneStatus laptopStatus
 
   (merged.value) ≡ true
 
-test "EWFlag stays enabled once any device enables" := do
+test "EWFlag later disable turns off" := do
   let phone : ReplicaId := 1
   let laptop : ReplicaId := 2
 
-  -- Once enabled by phone, stays enabled regardless of disables
-  -- (This is the enable-wins semantic)
-  let online := EWFlag.apply EWFlag.empty (EWFlag.enable phone)
+  -- Phone enables at time 1
+  let online := EWFlag.apply EWFlag.empty (EWFlag.enable (LamportTs.new 1 phone))
 
-  -- Disable operations are tracked but don't override enables
-  let withDisable := EWFlag.apply online (EWFlag.disable phone)
-  let withLaptopDisable := EWFlag.apply withDisable (EWFlag.disable laptop)
+  -- Later disable at time 2 wins (not concurrent)
+  let withDisable := EWFlag.apply online (EWFlag.disable (LamportTs.new 2 phone))
+  let withLaptopDisable := EWFlag.apply withDisable (EWFlag.disable (LamportTs.new 3 laptop))
 
-  -- Still enabled because enable-wins
-  (withLaptopDisable.value) ≡ true
+  (withLaptopDisable.value) ≡ false
 
 /-! ## Leaderboard with LWWMap
 
@@ -1000,8 +1001,8 @@ test "contrast with EWFlag - different semantics" := do
   let dwMerged := DWFlag.merge dwEnabled dwDisabled
 
   -- EWFlag: enable-wins (availability-focused)
-  let ewEnabled := EWFlag.apply EWFlag.empty (EWFlag.enable node1)
-  let ewDisabled := EWFlag.apply EWFlag.empty (EWFlag.disable node2)
+  let ewEnabled := EWFlag.apply EWFlag.empty (EWFlag.enable (LamportTs.new 1 node1))
+  let ewDisabled := EWFlag.apply EWFlag.empty (EWFlag.disable (LamportTs.new 1 node2))
   let ewMerged := EWFlag.merge ewEnabled ewDisabled
 
   -- Same operations, opposite results!

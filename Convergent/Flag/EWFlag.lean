@@ -4,56 +4,84 @@
   A boolean flag CRDT where concurrent enable and disable operations
   result in the flag being enabled (enable-wins semantics).
 
-  State: Two GSets tracking which replicas have enabled/disabled.
-  Query: True if any replica has enabled (regardless of disables).
+  State: timestamps for the most recent enable and disable operations.
+  Query: true if the last enable is newer than the last disable,
+  or if they are concurrent (equal time).
 
   Operations:
-  - Enable: Add replica to enabled set
-  - Disable: Add replica to disabled set (tracked for commutativity)
+  - Enable: Record enable timestamp
+  - Disable: Record disable timestamp
 -/
 import Convergent.Core.CmRDT
 import Convergent.Core.Monad
-import Convergent.Core.ReplicaId
-import Convergent.Set.GSet
+import Convergent.Core.Timestamp
 
 namespace Convergent
 
-/-- State: tracks which replicas have enabled/disabled the flag -/
+/-- State: tracks timestamps of the latest enable/disable operations. -/
 structure EWFlag where
-  enabled : GSet ReplicaId
-  disabled : GSet ReplicaId
+  lastEnable : Option LamportTs
+  lastDisable : Option LamportTs
   deriving Repr, Inhabited
 
 /-- Operation: enable or disable the flag -/
 inductive EWFlagOp where
-  | enable (replica : ReplicaId)
-  | disable (replica : ReplicaId)
+  | enable (timestamp : LamportTs)
+  | disable (timestamp : LamportTs)
   deriving Repr, BEq
 
 namespace EWFlag
 
 /-- Empty flag (disabled by default) -/
-def empty : EWFlag := { enabled := GSet.empty, disabled := GSet.empty }
+def empty : EWFlag := { lastEnable := none, lastDisable := none }
 
-/-- Get the flag value. Enable-wins: true if any replica has enabled. -/
-def value (f : EWFlag) : Bool := !f.enabled.elements.isEmpty
+/-- Max by Lamport timestamp (time, then replica) for deterministic merge. -/
+private def maxTs (a b : LamportTs) : LamportTs :=
+  match compare a b with
+  | .gt => a
+  | .lt => b
+  | .eq => a
+
+/-- Max option helper for timestamps. -/
+private def maxTsOpt (a b : Option LamportTs) : Option LamportTs :=
+  match a, b with
+  | none, none => none
+  | some ts, none => some ts
+  | none, some ts => some ts
+  | some tsA, some tsB => some (maxTs tsA tsB)
+
+/-- Update an optional timestamp with a new one. -/
+private def updateTs (current : Option LamportTs) (ts : LamportTs) : Option LamportTs :=
+  maxTsOpt current (some ts)
+
+/-- Get the flag value. Enable-wins on equal timestamps. -/
+def value (f : EWFlag) : Bool :=
+  match f.lastEnable, f.lastDisable with
+  | none, none => false
+  | some _, none => true
+  | none, some _ => false
+  | some en, some dis =>
+    match compare en.time dis.time with
+    | .gt => true
+    | .lt => false
+    | .eq => true
 
 /-- Apply an operation -/
 def apply (f : EWFlag) (op : EWFlagOp) : EWFlag :=
   match op with
-  | .enable r => { f with enabled := GSet.apply f.enabled (GSet.add r) }
-  | .disable r => { f with disabled := GSet.apply f.disabled (GSet.add r) }
+  | .enable ts => { f with lastEnable := updateTs f.lastEnable ts }
+  | .disable ts => { f with lastDisable := updateTs f.lastDisable ts }
 
 /-- Create an enable operation -/
-def enable (replica : ReplicaId) : EWFlagOp := .enable replica
+def enable (timestamp : LamportTs) : EWFlagOp := .enable timestamp
 
 /-- Create a disable operation -/
-def disable (replica : ReplicaId) : EWFlagOp := .disable replica
+def disable (timestamp : LamportTs) : EWFlagOp := .disable timestamp
 
 /-- Merge two flags (union both sets) -/
 def merge (a b : EWFlag) : EWFlag :=
-  { enabled := GSet.merge a.enabled b.enabled
-  , disabled := GSet.merge a.disabled b.disabled }
+  { lastEnable := maxTsOpt a.lastEnable b.lastEnable
+  , lastDisable := maxTsOpt a.lastDisable b.lastDisable }
 
 instance : CmRDT EWFlag EWFlagOp where
   empty := empty
@@ -69,12 +97,12 @@ instance : ToString EWFlag where
 /-! ## Monadic Interface -/
 
 /-- Enable the flag in the CRDT monad -/
-def enableM (replica : ReplicaId) : CRDTM EWFlag Unit :=
-  applyM (enable replica)
+def enableM (timestamp : LamportTs) : CRDTM EWFlag Unit :=
+  applyM (enable timestamp)
 
 /-- Disable the flag in the CRDT monad -/
-def disableM (replica : ReplicaId) : CRDTM EWFlag Unit :=
-  applyM (disable replica)
+def disableM (timestamp : LamportTs) : CRDTM EWFlag Unit :=
+  applyM (disable timestamp)
 
 end EWFlag
 

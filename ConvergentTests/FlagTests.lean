@@ -14,42 +14,51 @@ test "EWFlag empty is false" := do
 
 test "EWFlag enable makes true" := do
   let r1 : ReplicaId := 1
+  let ts1 := LamportTs.new 1 r1
   let f := runCRDT EWFlag.empty do
-    EWFlag.enableM r1
+    EWFlag.enableM ts1
   (f.value) ≡ true
 
-test "EWFlag disable after enable stays true (enable-wins)" := do
+test "EWFlag disable after enable makes false (later disable)" := do
   let r1 : ReplicaId := 1
+  let tsEnable := LamportTs.new 1 r1
+  let tsDisable := LamportTs.new 2 r1
   let f := runCRDT EWFlag.empty do
-    EWFlag.enableM r1
-    EWFlag.disableM r1
-  (f.value) ≡ true
+    EWFlag.enableM tsEnable
+    EWFlag.disableM tsDisable
+  (f.value) ≡ false
 
-test "EWFlag enable after disable is true" := do
+test "EWFlag enable after disable is true (later enable)" := do
   let r1 : ReplicaId := 1
+  let tsDisable := LamportTs.new 1 r1
+  let tsEnable := LamportTs.new 2 r1
   let f := runCRDT EWFlag.empty do
-    EWFlag.disableM r1
-    EWFlag.enableM r1
+    EWFlag.disableM tsDisable
+    EWFlag.enableM tsEnable
   (f.value) ≡ true
 
 test "EWFlag concurrent enable + disable is true" := do
   let r1 : ReplicaId := 1
   let r2 : ReplicaId := 2
+  let tsEnable := LamportTs.new 1 r1
+  let tsDisable := LamportTs.new 1 r2
   -- Simulate concurrent: r1 enables, r2 disables
   let f := runCRDT EWFlag.empty do
-    EWFlag.enableM r1
-    EWFlag.disableM r2
+    EWFlag.enableM tsEnable
+    EWFlag.disableM tsDisable
   (f.value) ≡ true
 
 test "EWFlag merge preserves enable-wins" := do
   let r1 : ReplicaId := 1
   let r2 : ReplicaId := 2
+  let tsEnable := LamportTs.new 1 r1
+  let tsDisable := LamportTs.new 1 r2
   -- f1: enabled by r1
   let f1 := runCRDT EWFlag.empty do
-    EWFlag.enableM r1
+    EWFlag.enableM tsEnable
   -- f2: disabled by r2
   let f2 := runCRDT EWFlag.empty do
-    EWFlag.disableM r2
+    EWFlag.disableM tsDisable
   -- Merged: should be true (enable-wins)
   let merged := EWFlag.merge f1 f2
   (merged.value) ≡ true
@@ -57,9 +66,11 @@ test "EWFlag merge preserves enable-wins" := do
 test "EWFlag multiple enables" := do
   let r1 : ReplicaId := 1
   let r2 : ReplicaId := 2
+  let ts1 := LamportTs.new 1 r1
+  let ts2 := LamportTs.new 2 r2
   let f := runCRDT EWFlag.empty do
-    EWFlag.enableM r1
-    EWFlag.enableM r2
+    EWFlag.enableM ts1
+    EWFlag.enableM ts2
   (f.value) ≡ true
 
 testSuite "DWFlag"

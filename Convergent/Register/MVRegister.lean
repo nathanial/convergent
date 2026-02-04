@@ -69,14 +69,6 @@ def apply [Ord α] (reg : MVRegister α) (op : MVRegisterOp α) : MVRegister α 
   if isStrictlyDominated op.clock reg.values then
     reg
   else
-    -- Check for equivalent clocks and use value as tie-breaker
-    let dominated := reg.values.filter fun (existingVal, existingClock) =>
-      if clocksEqual existingClock op.clock then
-        -- Equivalent clocks: keep the greater value
-        compare existingVal op.value != .gt
-      else
-        -- Strictly dominated by new clock
-        VectorClock.dominates op.clock existingClock
     let remaining := reg.values.filter fun (existingVal, existingClock) =>
       if clocksEqual existingClock op.clock then
         compare existingVal op.value == .gt

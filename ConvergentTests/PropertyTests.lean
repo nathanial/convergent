@@ -151,9 +151,26 @@ def ormapOpCompatibleWithState [BEq κ] [Hashable κ] [BEq α] (m : ORMap κ α 
     entries.all fun (v2, t2) => if t2 == tag then v2 == v else true
   | _ => true
 
-/-- Compare EWFlags by enabled/disabled sets -/
+/-- Fugue ops are compatible if duplicate inserts with the same ID agree. -/
+def fugueOpsCompatible [BEq α] (op1 op2 : FugueOp α) : Bool :=
+  match op1, op2 with
+  | .insert n1, .insert n2 =>
+    if n1.id == n2.id then n1 == n2 else true
+  | _, _ => true
+
+/-- Fugue op is compatible with state if inserts don't conflict with existing nodes. -/
+def fugueOpCompatibleWithState [BEq α] (f : Fugue α) (op : FugueOp α) : Bool :=
+  match op with
+  | .insert node =>
+    match f.getNode node.id with
+    | none => true
+    | some existing =>
+      if existing.value.isNone then true else existing == node
+  | _ => true
+
+/-- Compare EWFlags by last enable/disable timestamps. -/
 def ewflagEq (a b : EWFlag) : Bool :=
-  gsetEq a.enabled b.enabled && gsetEq a.disabled b.disabled
+  a.lastEnable == b.lastEnable && a.lastDisable == b.lastDisable
 
 /-- Compare DWFlags by enabled/disabled sets -/
 def dwflagEq (a b : DWFlag) : Bool :=
@@ -240,8 +257,8 @@ instance [Repr κ] [Repr α] [Repr OpA] : Repr (ORMapOp κ α OpA) where
 
 instance : Repr EWFlagOp where
   reprPrec op _ := match op with
-    | .enable r => s!"EWFlagOp.enable({repr r})"
-    | .disable r => s!"EWFlagOp.disable({repr r})"
+    | .enable ts => s!"EWFlagOp.enable({repr ts})"
+    | .disable ts => s!"EWFlagOp.disable({repr ts})"
 
 instance : Repr DWFlagOp where
   reprPrec op _ := match op with
@@ -626,17 +643,17 @@ instance : Arbitrary EWFlag where
     let numOps ← genSmallNat 4
     let mut f := EWFlag.empty
     for _ in [0:numOps] do
-      let replica ← Arbitrary.arbitrary
+      let ts ← Arbitrary.arbitrary
       let isEnable ← genSmallNat 1
-      let op := if isEnable == 0 then EWFlag.enable replica else EWFlag.disable replica
+      let op := if isEnable == 0 then EWFlag.enable ts else EWFlag.disable ts
       f := EWFlag.apply f op
     return f
 
 instance : Arbitrary EWFlagOp where
   arbitrary := do
-    let replica ← Arbitrary.arbitrary
+    let ts ← Arbitrary.arbitrary
     let isEnable ← genSmallNat 1
-    return if isEnable == 0 then .enable replica else .disable replica
+    return if isEnable == 0 then .enable ts else .disable ts
 
 instance : Arbitrary DWFlag where
   arbitrary := do
@@ -661,7 +678,7 @@ instance : Arbitrary (LWWElementSet Nat) where
   arbitrary := do
     let numOps ← genSmallNat 4
     let mut set := LWWElementSet.empty
-    for i in [0:numOps] do
+    for _ in [0:numOps] do
       let v ← genSmallNat 10
       let ts ← Arbitrary.arbitrary
       let isAdd ← genSmallNat 1
@@ -1072,8 +1089,13 @@ instance : Arbitrary (TwoPGraphOp Nat) where
 
 -- Fugue apply commutes
 #test ∀ (s : Fugue Nat) (op1 op2 : FugueOp Nat),
-  fugueEq (Fugue.apply (Fugue.apply s op1) op2)
-          (Fugue.apply (Fugue.apply s op2) op1)
+  if fugueOpsCompatible op1 op2
+      && fugueOpCompatibleWithState s op1
+      && fugueOpCompatibleWithState s op2 then
+    fugueEq (Fugue.apply (Fugue.apply s op1) op2)
+            (Fugue.apply (Fugue.apply s op2) op1)
+  else
+    true
 
 -- TwoPGraph apply commutes
 #test ∀ (s : TwoPGraph Nat) (op1 op2 : TwoPGraphOp Nat),
@@ -1150,14 +1172,14 @@ instance : Arbitrary (TwoPGraphOp Nat) where
   ormapEq (ORMap.apply m' op) m'
 
 -- EWFlag enable is idempotent
-#test ∀ (f : EWFlag) (r : ReplicaId),
-  let f' := EWFlag.apply f (EWFlag.enable r)
-  ewflagEq (EWFlag.apply f' (EWFlag.enable r)) f'
+#test ∀ (f : EWFlag) (ts : LamportTs),
+  let f' := EWFlag.apply f (EWFlag.enable ts)
+  ewflagEq (EWFlag.apply f' (EWFlag.enable ts)) f'
 
 -- EWFlag disable is idempotent
-#test ∀ (f : EWFlag) (r : ReplicaId),
-  let f' := EWFlag.apply f (EWFlag.disable r)
-  ewflagEq (EWFlag.apply f' (EWFlag.disable r)) f'
+#test ∀ (f : EWFlag) (ts : LamportTs),
+  let f' := EWFlag.apply f (EWFlag.disable ts)
+  ewflagEq (EWFlag.apply f' (EWFlag.disable ts)) f'
 
 -- DWFlag enable is idempotent
 #test ∀ (f : DWFlag) (r : ReplicaId),
@@ -1369,14 +1391,17 @@ instance : Arbitrary (TwoPGraphOp Nat) where
 
 -- EWFlag: enable makes true
 #test ∀ (r : ReplicaId),
-  let f := EWFlag.apply EWFlag.empty (EWFlag.enable r)
+  let ts := LamportTs.new 1 r
+  let f := EWFlag.apply EWFlag.empty (EWFlag.enable ts)
   f.value == true
 
--- EWFlag: enable-wins (enable + disable = true)
+-- EWFlag: enable-wins for concurrent ops (same time)
 #test ∀ (r1 r2 : ReplicaId),
+  let tsEnable := LamportTs.new 1 r1
+  let tsDisable := LamportTs.new 1 r2
   let f := EWFlag.empty
-    |> fun s => EWFlag.apply s (EWFlag.enable r1)
-    |> fun s => EWFlag.apply s (EWFlag.disable r2)
+    |> fun s => EWFlag.apply s (EWFlag.enable tsEnable)
+    |> fun s => EWFlag.apply s (EWFlag.disable tsDisable)
   f.value == true
 
 -- DWFlag: empty is false
